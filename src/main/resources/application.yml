@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: ai-inference-gateway
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:gateway_db}
+    username: ${DB_USERNAME:gateway}
+    password: ${DB_PASSWORD:gateway}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: 8080
+
+# ── Custom Properties ────────────────────────────────
+ollama:
+  base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+
+# ── Actuator ─────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: always

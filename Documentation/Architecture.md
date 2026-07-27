@@ -90,11 +90,13 @@ ai-inference-gateway/
 ├── Dockerfile
 ├── pom.xml
 ├── README.md
-├── docs/
+├── .env.example
+├── Documentation/
 │   ├── PRD.md
 │   ├── Architecture.md
 │   ├── Rules.md
-│   └── Phases.md
+│   ├── Phases.md
+│   └── Roadmap.md
 ├── src/
 │   ├── main/
 │   │   ├── java/com/gateway/
@@ -106,6 +108,8 @@ ai-inference-gateway/
 │   │   │   │   └── LogController.java
 │   │   │   │
 │   │   │   ├── auth/                       # API key authentication
+│   │   │   │   ├── ApiKey.java             # entity
+│   │   │   │   ├── ApiKeyRepository.java
 │   │   │   │   ├── ApiKeyFilter.java
 │   │   │   │   └── ApiKeyService.java
 │   │   │   │
@@ -144,14 +148,16 @@ ai-inference-gateway/
 │   │   │
 │   │   └── resources/
 │   │       ├── application.yml
-│   │       └── db/migration/               # Flyway/Liquibase SQL migrations
+│   │       └── db/migration/               # Flyway SQL migrations
 │   │           ├── V1__create_providers.sql
 │   │           ├── V2__create_models.sql
 │   │           ├── V3__create_api_keys.sql
-│   │           └── V4__create_request_logs.sql
+│   │           ├── V4__create_request_logs.sql
+│   │           └── V5__seed_data.sql
 │   │
 │   └── test/
 │       └── java/com/gateway/
+│           ├── GatewayApplicationTests.java
 │           ├── routing/RoutingEngineTest.java
 │           ├── provider/OllamaProviderTest.java
 │           └── api/InferenceControllerTest.java

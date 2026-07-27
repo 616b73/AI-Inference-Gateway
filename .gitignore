@@ -1,0 +1,36 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE - IntelliJ
+.idea/
+*.iml
+*.iws
+out/
+
+# IDE - Eclipse
+.classpath
+.project
+.settings/
+
+# IDE - VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+
+# Logs
+*.log
+logs/
