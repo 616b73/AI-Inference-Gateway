@@ -111,7 +111,8 @@ ai-inference-gateway/
 │   │   │   │   ├── ApiKey.java             # entity
 │   │   │   │   ├── ApiKeyRepository.java
 │   │   │   │   ├── ApiKeyFilter.java
-│   │   │   │   └── ApiKeyService.java
+│   │   │   │   ├── ApiKeyService.java
+│   │   │   │   └── SecurityConfig.java     # Spring Security configuration
 │   │   │   │
 │   │   │   ├── routing/                    # Provider resolution logic
 │   │   │   │   └── RoutingEngine.java

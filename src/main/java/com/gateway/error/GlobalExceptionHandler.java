@@ -3,7 +3,9 @@ package com.gateway.error;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -47,6 +49,20 @@ public class GlobalExceptionHandler {
 
         ApiError error = ApiError.of(ErrorCode.INVALID_REQUEST, message, request.getRequestURI(), requestId);
         return ResponseEntity.status(ErrorCode.INVALID_REQUEST.getHttpStatus()).body(error);
+    }
+
+    /**
+     * Handles Spring Security access denied errors (e.g., authenticated but not authorized).
+     * Returns 403 using the standard ApiError schema.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        String requestId = getRequestId(request);
+
+        log.warn("Access denied requestId={}: {}", requestId, ex.getMessage());
+
+        ApiError error = ApiError.of(ErrorCode.UNAUTHORIZED, "Access denied", request.getRequestURI(), requestId);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
     /**

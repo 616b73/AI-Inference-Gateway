@@ -159,11 +159,55 @@ Each entry records what was built, why certain decisions were made, and what was
 - No `HHH90000025` warning in logs (dialect fix confirmed).
 - `ProviderRegistry` log: `Registered provider: ollama-local (type=ollama)` — seed data correctly loaded.
 - Flyway: `Schema "public" is up to date. No migration necessary.` — no schema changes in this phase.
+---
+
+### Milestone 4: Phase 2 — Authentication
+
+**Goal:** Implement API key authentication so that every `/v1/*` endpoint is born protected, before any business endpoints go live. Completes Phase 2.
+
+**What was done:**
+
+*Dependencies:*
+- Added `spring-boot-starter-security` to `pom.xml` — provides Spring Security's filter chain, `BCryptPasswordEncoder`, session management, and authorization infrastructure.
+- Added `spring-security-test` (test scope) — provides `MockMvc` security integration utilities.
+
+*Auth Service:*
+- Created `auth/ApiKeyService.java` — validates a plaintext API key against stored BCrypt hashes. Injects `ApiKeyRepository` and `BCryptPasswordEncoder`. The `validate(String rawKey)` method loads all active keys via `findByActiveTrue()` and iterates with `BCryptPasswordEncoder.matches()`. Returns `true` on first match. Handles null/blank inputs as early returns.
+
+*Auth Filter:*
+- Created `auth/ApiKeyFilter.java` — `OncePerRequestFilter` that reads the `X-API-Key` header, delegates to `ApiKeyService.validate()`, and either sets a `UsernamePasswordAuthenticationToken` in the `SecurityContext` (on success) or writes a 401 JSON `ApiError` response directly (on failure). Only applies to `/v1/**` paths via `shouldNotFilter()` — actuator and other paths are excluded. The 401 response includes `requestId` from the upstream `RequestIdFilter`.
+
+*Security Configuration:*
+- Created `auth/SecurityConfig.java` — `@Configuration` + `@EnableWebSecurity`. Defines a `SecurityFilterChain` bean: CSRF disabled, `STATELESS` session policy, `/actuator/**` permitted, `/v1/**` authenticated, all other paths denied. Creates `ApiKeyFilter` as a `@Bean` and inserts it via `addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)`. Exposes `BCryptPasswordEncoder` as a bean.
+
+*Error Handler Update:*
+- Modified `error/GlobalExceptionHandler.java` — added `AccessDeniedException` handler that returns 403 with standard `ApiError` JSON shape. Covers the edge case where a request passes the API key filter but hits a denied path.
+
+*Documentation:*
+- Updated `Architecture.md §5` — added `SecurityConfig.java` to the `auth/` package listing.
+
+**Key decisions:**
+- **`ApiKeyFilter` as a `@Bean` in `SecurityConfig`, not a `@Component`:** Initial implementation used `@Component` + `@Order` on the filter. This caused Spring Boot to register it as both a servlet-level filter AND a Spring Security filter (via `addFilterBefore`). The servlet-level instance ran before Spring Security's `SecurityContextHolderFilter`, which then cleared the `SecurityContext` we set — causing all valid-key requests to get 403. Removing `@Component` and creating the filter as a `@Bean` in `SecurityConfig` ensures it only runs inside the Security filter chain where `SecurityContext` lifecycle is properly managed.
+- **Manual JSON response in the filter:** `GlobalExceptionHandler` (`@RestControllerAdvice`) only catches exceptions thrown inside the `DispatcherServlet`. Filters execute before it, so auth failures must write the response directly using `ObjectMapper`. The response still follows the standard `ApiError` schema with `requestId`.
+- **`shouldNotFilter()` for path scoping:** Rather than relying solely on Spring Security's `requestMatchers` for path-based auth decisions, the filter itself skips non-`/v1/` paths. This provides defense-in-depth and avoids unnecessary BCrypt hash comparisons for health checks.
+- **MVP key iteration:** For MVP with a small number of keys, iterating all active hashes is acceptable. Post-MVP optimization would add a key-prefix lookup column to avoid full scans.
+
+**Tests:**
+- `ApiKeyServiceTest` (6 tests) — valid key matches stored hash; invalid key rejected; no active keys returns false; null key returns false; blank key returns false; matches second key in a multi-key list.
+- `ApiKeyFilterIntegrationTest` (7 tests) — full `@SpringBootTest` + `@AutoConfigureMockMvc` with a `@TestConfiguration` dummy `/v1/test-auth` controller. Seeds a test API key via `ApiKeyRepository` in `@BeforeEach`. Tests: missing key → 401 with `ApiError` JSON; invalid key → 401; valid key → 200; actuator health without key → 200; 401 response carries `X-Request-Id` header; empty key → 401; valid key response has no error fields.
+- All existing Phase 0/1 tests (15) continue to pass.
+- **Total: 28 tests, 0 failures, 0 errors.** `mvn test` passes in ~23s.
+
+**Docker verification:**
+- `docker compose up --build -d` — gateway container rebuilt with security dependencies, started successfully.
+- `GET /actuator/health` (no key) → 200 UP — health check remains accessible.
+- `GET /v1/providers` (no key) → 401 `{"status":401,"error":"UNAUTHORIZED","message":"Missing API key","requestId":"req_..."}`.
+- `GET /v1/providers` (wrong key) → 401 `{"status":401,"error":"UNAUTHORIZED","message":"Invalid API key","requestId":"req_..."}`.
+- `GET /v1/providers` (valid key `test-api-key-1`) → 500 (expected — no `/v1/providers` controller yet, confirming auth passed successfully).
 
 ## Next Steps / Future Enhancements
 
 ### Upcoming MVP Phases
-- **Phase 2:** Authentication — `ApiKeyService`, `ApiKeyFilter` (Spring Security), protect all `/v1/*` routes, 401 error handling.
 - **Phase 3:** `/v1/inference` endpoint & request logging — `InferenceController`, `InferenceService`, `RequestLogService`, end-to-end inference flow.
 - **Phase 4:** Visibility endpoints — `GET /v1/providers`, `GET /v1/logs` with pagination and filtering.
 - **Phase 5:** Hardening, test coverage, documentation polish.
@@ -176,3 +220,4 @@ Each entry records what was built, why certain decisions were made, and what was
 - **Event-driven processing:** Kafka for async request log ingestion and analytics pipelines.
 - **Advanced auth:** JWT/OAuth2, RBAC, multi-tenant governance.
 - **Deployment:** Kubernetes manifests, multi-region support, CI/CD pipelines.
+
