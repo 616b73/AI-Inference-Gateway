@@ -205,10 +205,49 @@ Each entry records what was built, why certain decisions were made, and what was
 - `GET /v1/providers` (wrong key) → 401 `{"status":401,"error":"UNAUTHORIZED","message":"Invalid API key","requestId":"req_..."}`.
 - `GET /v1/providers` (valid key `test-api-key-1`) → 500 (expected — no `/v1/providers` controller yet, confirming auth passed successfully).
 
+---
+
+### Milestone 5: Phase 3 — `/v1/inference` Endpoint & Request Logging
+
+**Goal:** Implement the primary end-to-end inference flow. A client sends a prompt, it's routed to a provider, and the outcome is logged. Completes Phase 3.
+
+**What was done:**
+
+*Request Logging:*
+- Created `logging/RequestLogService.java` — logs every inference call to the `request_logs` table. Records `requestId`, provider, model, `SUCCESS`/`FAILURE` status, error code, and end-to-end latency. Does NOT store prompt or response text.
+
+*Inference Service:*
+- Created `inference/InferenceService.java` — the core orchestrator. 
+  1. Resolves provider via `RoutingEngine`.
+  2. Calls the provider adapter.
+  3. Measures end-to-end latency and stamps the `requestId` onto the response.
+  4. Calls `RequestLogService` to log the success or failure.
+  5. Re-throws exceptions so `GlobalExceptionHandler` can format them.
+
+*Inference Controller:*
+- Created `api/InferenceController.java` — thin REST controller for `POST /v1/inference`. Validates the request using `@Valid` (rejects missing model/prompt with 400). Reads `requestId` from the servlet request attributes and delegates to `InferenceService`.
+
+**Key decisions:**
+- **Latency Measurement:** Latency is measured end-to-end in `InferenceService` (including routing time and provider call) rather than just inside the provider adapter, ensuring the logged latency accurately reflects the gateway's overhead plus provider latency.
+- **RequestId Stamping:** The provider adapter (`OllamaProvider`) does not know the `requestId`. `InferenceService` builds a final `InferenceResponse` copy that includes the `requestId` before returning it to the controller.
+- **Provider Mocking in Tests:** In `InferenceControllerIntegrationTest`, `@MockitoBean` was used to mock `ProviderRegistry` and `AIProvider` to prevent tests from hitting real Ollama instances while still testing the entire Spring context. `ProviderConfig` and `ModelConfig` records had to be seeded in the H2 DB in `@BeforeEach` so the `RoutingEngine` wouldn't fail model validation.
+
+**Tests:**
+- `RequestLogServiceTest` (2 tests) — validates correct fields are saved on success and failure.
+- `InferenceServiceTest` (5 tests) — tests orchestration, latency measurement, `requestId` stamping, and proper exception logging/re-throwing.
+- `InferenceControllerIntegrationTest` (7 tests) — tests full Spring Boot endpoint with mocked provider layer. Verifies happy path, 400 on bad requests, 401 on missing auth, explicit provider routing, and DB log insertion.
+- **Total: 42 tests, 0 failures, 0 errors.** `mvn test` passes cleanly.
+
+**Docker verification:**
+- `docker compose up --build -d` — gateway container rebuilt and started.
+- `POST /v1/inference` (valid key + prompt) → 200 OK with `text`, `model`, `provider`, `requestId`, `latencyMs`.
+- `POST /v1/inference` (missing prompt) → 400 `INVALID_REQUEST`.
+- `POST /v1/inference` (no key) → 401 `UNAUTHORIZED`.
+- `SELECT * FROM request_logs` → verified successful inference was logged with latency and no error code.
+
 ## Next Steps / Future Enhancements
 
 ### Upcoming MVP Phases
-- **Phase 3:** `/v1/inference` endpoint & request logging — `InferenceController`, `InferenceService`, `RequestLogService`, end-to-end inference flow.
 - **Phase 4:** Visibility endpoints — `GET /v1/providers`, `GET /v1/logs` with pagination and filtering.
 - **Phase 5:** Hardening, test coverage, documentation polish.
 
