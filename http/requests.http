@@ -1,0 +1,103 @@
+### AI Inference Gateway — Sample Requests
+### Use with IntelliJ HTTP Client or VS Code REST Client extension
+
+### ─── Health Check (no auth required) ───
+
+GET http://localhost:8080/actuator/health
+
+###
+
+### ─── Inference ───
+
+### Happy path: send a prompt to the default provider
+POST http://localhost:8080/v1/inference
+Content-Type: application/json
+X-API-Key: test-api-key-1
+
+{
+  "model": "qwen3",
+  "prompt": "What is 2+2? Answer in one word."
+}
+
+###
+
+### Explicit provider routing
+POST http://localhost:8080/v1/inference
+Content-Type: application/json
+X-API-Key: test-api-key-1
+
+{
+  "provider": "ollama-local",
+  "model": "qwen3",
+  "prompt": "Explain recursion in one sentence."
+}
+
+###
+
+### Missing prompt → 400 INVALID_REQUEST
+POST http://localhost:8080/v1/inference
+Content-Type: application/json
+X-API-Key: test-api-key-1
+
+{
+  "model": "qwen3"
+}
+
+###
+
+### Missing API key → 401 UNAUTHORIZED
+POST http://localhost:8080/v1/inference
+Content-Type: application/json
+
+{
+  "model": "qwen3",
+  "prompt": "Hello"
+}
+
+###
+
+### ─── Providers ───
+
+### List all active providers and their models
+GET http://localhost:8080/v1/providers
+X-API-Key: test-api-key-1
+
+###
+
+### ─── Logs ───
+
+### Default pagination (page 0, size 20)
+GET http://localhost:8080/v1/logs
+X-API-Key: test-api-key-1
+
+###
+
+### Custom page size
+GET http://localhost:8080/v1/logs?page=0&size=5
+X-API-Key: test-api-key-1
+
+###
+
+### Filter by provider
+GET http://localhost:8080/v1/logs?provider=ollama-local
+X-API-Key: test-api-key-1
+
+###
+
+### Filter by status
+GET http://localhost:8080/v1/logs?status=SUCCESS
+X-API-Key: test-api-key-1
+
+###
+
+### Filter by date range (ISO-8601)
+GET http://localhost:8080/v1/logs?from=2026-08-01T00:00:00&to=2026-08-05T23:59:59
+X-API-Key: test-api-key-1
+
+###
+
+### Combined filters
+GET http://localhost:8080/v1/logs?provider=ollama-local&status=SUCCESS&page=0&size=10
+X-API-Key: test-api-key-1
+
+###

@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -56,15 +57,36 @@ public class RequestLogService {
     }
 
     /**
-     * Retrieve paginated request logs, ordered by timestamp descending (most recent first).
+     * Retrieve paginated and optionally filtered request logs, ordered by timestamp descending.
      *
-     * @param page zero-based page index
-     * @param size page size (capped at 100)
+     * @param page     zero-based page index
+     * @param size     page size (capped at 100)
+     * @param provider optional filter by provider name
+     * @param status   optional filter by status ("SUCCESS" / "FAILURE")
+     * @param from     optional inclusive start timestamp
+     * @param to       optional inclusive end timestamp
      * @return a page of {@link RequestLog} entries
      */
-    public Page<RequestLog> getLogs(int page, int size) {
+    public Page<RequestLog> getLogs(int page, int size, String provider,
+                                    String status, LocalDateTime from, LocalDateTime to) {
         int cappedSize = Math.min(size, 100);
         PageRequest pageRequest = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "timestamp"));
-        return requestLogRepository.findAll(pageRequest);
+
+        Specification<RequestLog> spec = Specification.where(null);
+
+        if (provider != null && !provider.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("provider"), provider));
+        }
+        if (status != null && !status.isBlank()) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        if (from != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("timestamp"), from));
+        }
+        if (to != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("timestamp"), to));
+        }
+
+        return requestLogRepository.findAll(spec, pageRequest);
     }
 }

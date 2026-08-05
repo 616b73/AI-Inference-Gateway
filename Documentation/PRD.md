@@ -77,13 +77,13 @@ This project centralizes AI access behind one platform layer.
 
 The MVP is complete when:
 
-- [ ] An app can send a request to one stable gateway endpoint and get a provider response back
-- [ ] Requests route correctly per the explicit-provider / default-provider rule
-- [ ] Every response (success or error) carries a `requestId`
-- [ ] Requests without a valid API key are rejected with the standard error schema
-- [ ] Every request is logged with full metadata, retrievable via paginated/filtered `/v1/logs`
-- [ ] Configured providers are viewable via `/v1/providers`
-- [ ] The whole system runs locally via `docker compose up` with no external paid API dependency
+- [x] An app can send a request to one stable gateway endpoint and get a provider response back
+- [x] Requests route correctly per the explicit-provider / default-provider rule
+- [x] Every response (success or error) carries a `requestId`
+- [x] Requests without a valid API key are rejected with the standard error schema
+- [x] Every request is logged with full metadata, retrievable via paginated/filtered `/v1/logs`
+- [x] Configured providers are viewable via `/v1/providers`
+- [x] The whole system runs locally via `docker compose up` with no external paid API dependency
 
 ---
 

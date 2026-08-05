@@ -77,14 +77,9 @@ The database is automatically populated with test data on first startup:
 | `models` | `qwen3` | Linked to `ollama-local`, active |
 | `api_keys` | `local-test-key` | Plaintext: `test-api-key-1` |
 
-Use the test API key in requests:
-```bash
-curl -H "X-API-Key: test-api-key-1" http://localhost:8080/v1/inference ...
-```
-
 ---
 
-## API Endpoints (MVP)
+## API Endpoints
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
@@ -92,6 +87,120 @@ curl -H "X-API-Key: test-api-key-1" http://localhost:8080/v1/inference ...
 | `/v1/providers` | GET | `X-API-Key` | List configured providers and models |
 | `/v1/logs` | GET | `X-API-Key` | Query request history (paginated, filterable) |
 | `/actuator/health` | GET | None | Service health check |
+
+---
+
+## Example Requests
+
+> A complete set of sample requests is also available at [`http/requests.http`](http/requests.http) for IntelliJ HTTP Client or VS Code REST Client.
+
+### Send an inference request
+
+```bash
+curl -X POST http://localhost:8080/v1/inference \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: test-api-key-1" \
+  -d '{"model": "qwen3", "prompt": "What is 2+2? Answer in one word."}'
+```
+
+**Success response (200):**
+```json
+{
+  "requestId": "req_4f6745e3-f051-45d3-94d9-0747a1449531",
+  "text": "Four",
+  "model": "qwen3",
+  "provider": "ollama-local",
+  "latencyMs": 1523
+}
+```
+
+**Error response (400 — missing prompt):**
+```json
+{
+  "timestamp": "2026-08-05T12:00:00.000",
+  "status": 400,
+  "error": "INVALID_REQUEST",
+  "message": "prompt: must not be blank",
+  "path": "/v1/inference",
+  "requestId": "req_abc123..."
+}
+```
+
+**Error response (401 — missing API key):**
+```json
+{
+  "timestamp": "2026-08-05T12:00:00.000",
+  "status": 401,
+  "error": "UNAUTHORIZED",
+  "message": "Missing API key",
+  "path": "/v1/inference",
+  "requestId": "req_def456..."
+}
+```
+
+### List active providers
+
+```bash
+curl http://localhost:8080/v1/providers \
+  -H "X-API-Key: test-api-key-1"
+```
+
+**Response (200):**
+```json
+[
+  {
+    "name": "ollama-local",
+    "type": "ollama",
+    "models": ["qwen3"]
+  }
+]
+```
+
+### Query request logs (with filters)
+
+```bash
+# Default pagination
+curl "http://localhost:8080/v1/logs" \
+  -H "X-API-Key: test-api-key-1"
+
+# Filter by provider and status
+curl "http://localhost:8080/v1/logs?provider=ollama-local&status=SUCCESS&page=0&size=10" \
+  -H "X-API-Key: test-api-key-1"
+
+# Filter by date range (ISO-8601)
+curl "http://localhost:8080/v1/logs?from=2026-08-01T00:00:00&to=2026-08-05T23:59:59" \
+  -H "X-API-Key: test-api-key-1"
+```
+
+**Response (200):**
+```json
+{
+  "content": [
+    {
+      "requestId": "req_4f6745e3-...",
+      "timestamp": "2026-08-05T12:00:00.000",
+      "provider": "ollama-local",
+      "model": "qwen3",
+      "status": "SUCCESS",
+      "errorCode": null,
+      "latencyMs": 1523
+    }
+  ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
+
+| Filter Param | Type | Example | Description |
+|-------------|------|---------|-------------|
+| `page` | int | `0` | Zero-based page index (default: 0) |
+| `size` | int | `20` | Page size, max 100 (default: 20) |
+| `provider` | string | `ollama-local` | Filter by provider name |
+| `status` | string | `SUCCESS` | Filter by status (`SUCCESS` / `FAILURE`) |
+| `from` | datetime | `2026-08-01T00:00:00` | Inclusive start (ISO-8601) |
+| `to` | datetime | `2026-08-05T23:59:59` | Inclusive end (ISO-8601) |
 
 ---
 
@@ -118,11 +227,14 @@ AI-Inference-Gateway/
 ├── Dockerfile                  # Multi-stage build (Maven → JRE Alpine)
 ├── pom.xml                     # Maven project descriptor
 ├── Documentation/              # Project docs (PRD, Architecture, Rules, Phases, Roadmap)
+├── http/
+│   └── requests.http           # Sample HTTP requests for manual testing
 ├── src/
 │   ├── main/
 │   │   ├── java/com/gateway/
 │   │   │   ├── GatewayApplication.java
 │   │   │   ├── api/            # Controllers (HTTP layer)
+│   │   │   │   └── dto/        # Response DTOs (ProviderDto, RequestLogDto, PaginatedResponse)
 │   │   │   ├── auth/           # API key authentication
 │   │   │   ├── routing/        # Provider resolution logic
 │   │   │   ├── provider/       # Provider abstraction + adapters
@@ -154,7 +266,7 @@ AI-Inference-Gateway/
 ## Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
+|-------|-----------| 
 | Backend | Spring Boot 3.4 (Java 21) |
 | Database | PostgreSQL 16 |
 | Cache (future) | Redis 7 |

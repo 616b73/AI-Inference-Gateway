@@ -278,10 +278,48 @@ Each entry records what was built, why certain decisions were made, and what was
 - `GET /v1/providers` → 200 OK with `[{"name":"ollama-local","type":"ollama","models":["qwen3"]}]`.
 - `GET /v1/logs?page=0&size=10` → 200 OK with paginated list of recent inference calls.
 
+---
+
+### Milestone 7: Phase 5 — Hardening, Test Coverage & Documentation
+
+**Goal:** Make the MVP demo-ready, fully compliant with PRD/Architecture/Rules specs, and welcoming to new contributors. Close the one remaining functional gap (log filtering). Completes Phase 5 and the entire MVP.
+
+**What was done:**
+
+*`/v1/logs` Filtering (PRD §5 compliance):*
+- Extended `RequestLogRepository` with `JpaSpecificationExecutor<RequestLog>` to support dynamic WHERE clause composition.
+- Updated `RequestLogService.getLogs()` to accept optional `provider`, `status`, `from`, `to` filter parameters. Builds a `Specification<RequestLog>` from non-null filters — avoids combinatorial explosion of query methods.
+- Updated `LogController` with four optional `@RequestParam` parameters: `provider` (String), `status` (String), `from` (ISO-8601 LocalDateTime), `to` (ISO-8601 LocalDateTime). Uses `@DateTimeFormat(iso = DATE_TIME)` for auto-parsing.
+
+*Test Coverage Hardening:*
+- Expanded `LogControllerIntegrationTest` from 7 to 16 tests. Seeds diverse data (two providers, mixed SUCCESS/FAILURE, spread across Aug 1–5). Tests: filter by provider, filter by status, filter by date range (from only, to only, both), combined provider+status, combined all four filters, empty result sets, and response shape validation.
+- Total test count: **62 tests, 0 failures, 0 errors.**
+
+*Documentation Polish:*
+- Rewrote `README.md`: added full "Example Requests" section with curl commands and JSON responses for all 3 endpoints, filter parameter reference table, updated project structure diagram to include `http/` and `api/dto/` directories.
+- Created `http/requests.http` — IntelliJ HTTP Client / VS Code REST Client file with pre-built requests for all endpoints including health check, inference (happy + error paths), providers, and logs with all filter combinations.
+
+*PRD §7 Success Criteria:*
+- Checked off all 7 success criteria in `PRD.md §7` — all are now `[x]`.
+
+**Key decisions:**
+- **JPA Specifications over custom `@Query`:** Specifications compose dynamically — each filter is an independent predicate ANDed together. This avoids writing 2^4 = 16 query method permutations and scales cleanly when new filters are added.
+- **`@DateTimeFormat` over manual parsing:** Spring's built-in ISO-8601 annotation handles parsing and returns a clean 400 on malformed input, with no custom error handling needed.
+
+**Tests:**
+- 16 `LogControllerIntegrationTest` tests covering all filter permutations, pagination, auth, and response shape.
+- **Full suite: 62 tests, 0 failures, 0 errors.** `mvn test` passes cleanly.
+
+**Docker verification:**
+- `docker compose up --build -d` — rebuilt and started.
+- `GET /v1/logs?provider=ollama-local` → 200 OK, filtered to ollama-local entries only.
+- `GET /v1/logs?status=SUCCESS` → 200 OK, filtered to SUCCESS entries only.
+- `GET /v1/logs?from=2026-08-01T00:00:00&to=2026-08-05T23:59:59` → 200 OK, date-filtered to 1 matching entry.
+
 ## Next Steps / Future Enhancements
 
-### Upcoming MVP Phases
-- **Phase 5:** Hardening, test coverage, documentation polish.
+### MVP Status
+All 5 MVP phases are complete. All PRD §7 success criteria are met. The gateway is demo-ready.
 
 ### Post-MVP Enhancements
 - **Additional providers:** OpenAI, Anthropic, Bedrock adapters (each is a new `AIProvider` implementation).

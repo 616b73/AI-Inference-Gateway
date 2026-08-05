@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Integration tests for {@code GET /v1/logs}.
+ * Integration tests for {@code GET /v1/logs} including pagination and filtering.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -51,6 +51,8 @@ class LogControllerIntegrationTest {
     @MockitoBean(name = "ollamaProvider")
     private AIProvider mockProvider;
 
+    private static final LocalDateTime BASE_TIME = LocalDateTime.of(2026, 8, 1, 12, 0, 0);
+
     @BeforeEach
     void setUp() {
         requestLogRepository.deleteAll();
@@ -65,20 +67,35 @@ class LogControllerIntegrationTest {
                 .build();
         apiKeyRepository.save(testKey);
 
-        // Seed 5 log entries with descending timestamps
-        for (int i = 1; i <= 5; i++) {
-            RequestLog log = RequestLog.builder()
-                    .id(UUID.randomUUID())
-                    .requestId("req_log_" + i)
-                    .timestamp(LocalDateTime.now().minusMinutes(5 - i))
-                    .provider("ollama-local")
-                    .model("qwen3")
-                    .status("SUCCESS")
-                    .latencyMs(100 + i * 10)
-                    .build();
-            requestLogRepository.save(log);
-        }
+        // Seed diverse log entries for filter testing
+        // Entry 1: ollama-local, SUCCESS, Aug 1 12:00
+        saveLog("req_1", BASE_TIME, "ollama-local", "qwen3", "SUCCESS", null, 100);
+        // Entry 2: ollama-local, FAILURE, Aug 2 12:00
+        saveLog("req_2", BASE_TIME.plusDays(1), "ollama-local", "qwen3", "FAILURE", "PROVIDER_UNAVAILABLE", 50);
+        // Entry 3: openai-prod, SUCCESS, Aug 3 12:00
+        saveLog("req_3", BASE_TIME.plusDays(2), "openai-prod", "gpt-4", "SUCCESS", null, 200);
+        // Entry 4: ollama-local, SUCCESS, Aug 4 12:00
+        saveLog("req_4", BASE_TIME.plusDays(3), "ollama-local", "qwen3", "SUCCESS", null, 150);
+        // Entry 5: openai-prod, FAILURE, Aug 5 12:00
+        saveLog("req_5", BASE_TIME.plusDays(4), "openai-prod", "gpt-4", "FAILURE", "PROVIDER_TIMEOUT", 5000);
     }
+
+    private void saveLog(String requestId, LocalDateTime timestamp, String provider,
+                         String model, String status, String errorCode, int latencyMs) {
+        RequestLog log = RequestLog.builder()
+                .id(UUID.randomUUID())
+                .requestId(requestId)
+                .timestamp(timestamp)
+                .provider(provider)
+                .model(model)
+                .status(status)
+                .errorCode(errorCode)
+                .latencyMs(latencyMs)
+                .build();
+        requestLogRepository.save(log);
+    }
+
+    // --- Pagination tests ---
 
     @Test
     void getLogs_defaultPagination_returns200WithAllEntries() throws Exception {
@@ -116,12 +133,14 @@ class LogControllerIntegrationTest {
 
     @Test
     void getLogs_orderedByTimestampDescending_mostRecentFirst() throws Exception {
-        // req_log_5 has the latest timestamp, so it should be first
+        // req_5 has the latest timestamp (Aug 5), should be first
         mockMvc.perform(get(LOGS_URL + "?page=0&size=1")
                         .header("X-API-Key", VALID_RAW_KEY))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].requestId").value("req_log_5"));
+                .andExpect(jsonPath("$.content[0].requestId").value("req_5"));
     }
+
+    // --- Auth tests ---
 
     @Test
     void getLogs_withoutApiKey_returns401() throws Exception {
@@ -129,6 +148,104 @@ class LogControllerIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
     }
+
+    // --- Filter: provider ---
+
+    @Test
+    void getLogs_filterByProvider_returnsOnlyMatchingProvider() throws Exception {
+        mockMvc.perform(get(LOGS_URL + "?provider=ollama-local")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(3)))
+                .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void getLogs_filterByProvider_noMatch_returnsEmpty() throws Exception {
+        mockMvc.perform(get(LOGS_URL + "?provider=nonexistent")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(0)))
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    // --- Filter: status ---
+
+    @Test
+    void getLogs_filterByStatus_returnsOnlyMatchingStatus() throws Exception {
+        mockMvc.perform(get(LOGS_URL + "?status=FAILURE")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void getLogs_filterByStatusSuccess_returnsOnlySuccess() throws Exception {
+        mockMvc.perform(get(LOGS_URL + "?status=SUCCESS")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(3)))
+                .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    // --- Filter: date range ---
+
+    @Test
+    void getLogs_filterByDateRange_returnsOnlyInRange() throws Exception {
+        // from Aug 2 to Aug 4 should return entries 2, 3, 4
+        mockMvc.perform(get(LOGS_URL + "?from=2026-08-02T00:00:00&to=2026-08-04T23:59:59")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(3)))
+                .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void getLogs_filterByFromOnly_returnsFromDateOnward() throws Exception {
+        // from Aug 4 onward should return entries 4, 5
+        mockMvc.perform(get(LOGS_URL + "?from=2026-08-04T00:00:00")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void getLogs_filterByToOnly_returnsUpToDate() throws Exception {
+        // up to Aug 2 should return entries 1, 2
+        mockMvc.perform(get(LOGS_URL + "?to=2026-08-02T23:59:59")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(2)))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    // --- Combined filters ---
+
+    @Test
+    void getLogs_combinedProviderAndStatus_returnsIntersection() throws Exception {
+        // ollama-local + FAILURE = entry 2 only
+        mockMvc.perform(get(LOGS_URL + "?provider=ollama-local&status=FAILURE")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].requestId").value("req_2"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void getLogs_combinedAllFilters_returnsCorrectResult() throws Exception {
+        // ollama-local + SUCCESS + Aug 3 to Aug 5 = entry 4 only
+        mockMvc.perform(get(LOGS_URL + "?provider=ollama-local&status=SUCCESS&from=2026-08-03T00:00:00&to=2026-08-05T23:59:59")
+                        .header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)))
+                .andExpect(jsonPath("$.content[0].requestId").value("req_4"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    // --- Shape tests ---
 
     @Test
     void getLogs_emptyLogs_returnsEmptyPage() throws Exception {
@@ -149,9 +266,9 @@ class LogControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].requestId").exists())
                 .andExpect(jsonPath("$.content[0].timestamp").exists())
-                .andExpect(jsonPath("$.content[0].provider").value("ollama-local"))
-                .andExpect(jsonPath("$.content[0].model").value("qwen3"))
-                .andExpect(jsonPath("$.content[0].status").value("SUCCESS"))
+                .andExpect(jsonPath("$.content[0].provider").exists())
+                .andExpect(jsonPath("$.content[0].model").exists())
+                .andExpect(jsonPath("$.content[0].status").exists())
                 .andExpect(jsonPath("$.content[0].latencyMs").isNumber())
                 // Internal UUID should NOT be exposed
                 .andExpect(jsonPath("$.content[0].id").doesNotExist());
