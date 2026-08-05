@@ -2,6 +2,9 @@ package com.gateway.logging;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -50,5 +53,18 @@ public class RequestLogService {
         requestLogRepository.save(entry);
         log.debug("Logged request {} — provider={}, model={}, status={}, latencyMs={}",
                 requestId, provider, model, status, latencyMs);
+    }
+
+    /**
+     * Retrieve paginated request logs, ordered by timestamp descending (most recent first).
+     *
+     * @param page zero-based page index
+     * @param size page size (capped at 100)
+     * @return a page of {@link RequestLog} entries
+     */
+    public Page<RequestLog> getLogs(int page, int size) {
+        int cappedSize = Math.min(size, 100);
+        PageRequest pageRequest = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "timestamp"));
+        return requestLogRepository.findAll(pageRequest);
     }
 }

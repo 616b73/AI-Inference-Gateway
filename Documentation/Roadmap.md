@@ -245,10 +245,42 @@ Each entry records what was built, why certain decisions were made, and what was
 - `POST /v1/inference` (no key) → 401 `UNAUTHORIZED`.
 - `SELECT * FROM request_logs` → verified successful inference was logged with latency and no error code.
 
+---
+
+### Milestone 6: Phase 4 — Visibility Endpoints
+
+**Goal:** Provide clients with visibility into the gateway's state and history via `GET /v1/providers` and `GET /v1/logs`. Completes Phase 4.
+
+**What was done:**
+
+*Data Transfer Objects (DTOs):*
+- Created `ProviderDto`, `RequestLogDto`, and `PaginatedResponse` in `api/dto/`. 
+- Ensured internal data (like provider base URLs and UUID primary keys) do not leak to API clients.
+
+*Provider Visibility:*
+- Created `api/ProviderController.java` (`GET /v1/providers`). Iterates over `ProviderRegistry.getAllProviders()` and maps them to `ProviderDto`.
+
+*Log Visibility:*
+- Modified `logging/RequestLogService.java` — added `getLogs(page, size)` that uses Spring Data's `PageRequest` with descending timestamp sorting and caps `size` at 100.
+- Created `api/LogController.java` (`GET /v1/logs`). Accepts `?page` and `?size` parameters, delegates to `RequestLogService`, and returns a `PaginatedResponse<RequestLogDto>`.
+
+**Key decisions:**
+- **In-Memory Provider Querying:** `ProviderController` queries the in-memory `ProviderRegistry` rather than the `ProviderConfigRepository`. This guarantees that the API only advertises providers that have successfully started their adapters, avoiding false positives from broken DB configs.
+- **Max Page Size:** Hardcoded a `Math.min(size, 100)` cap in `RequestLogService` to protect the DB from unbounded `SELECT` queries.
+
+**Tests:**
+- `ProviderControllerIntegrationTest` (4 tests) — tests happy path, base URL exclusion, 401 without key, and empty registry.
+- `LogControllerIntegrationTest` (7 tests) — tests default/custom pagination, ordering, 401, empty logs, and payload structure.
+- **Total: 53 tests, 0 failures, 0 errors.** `mvn test` passes cleanly.
+
+**Docker verification:**
+- `docker compose up --build -d` — rebuilt and started.
+- `GET /v1/providers` → 200 OK with `[{"name":"ollama-local","type":"ollama","models":["qwen3"]}]`.
+- `GET /v1/logs?page=0&size=10` → 200 OK with paginated list of recent inference calls.
+
 ## Next Steps / Future Enhancements
 
 ### Upcoming MVP Phases
-- **Phase 4:** Visibility endpoints — `GET /v1/providers`, `GET /v1/logs` with pagination and filtering.
 - **Phase 5:** Hardening, test coverage, documentation polish.
 
 ### Post-MVP Enhancements
