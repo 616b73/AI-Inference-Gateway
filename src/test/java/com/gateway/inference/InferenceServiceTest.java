@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,6 +25,7 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 class InferenceServiceTest {
+    @Spy private MeterRegistry meters = new SimpleMeterRegistry();
 
     @Mock
     private RoutingEngine routingEngine;
@@ -41,6 +45,34 @@ class InferenceServiceTest {
                 .model(model)
                 .prompt(prompt)
                 .build();
+    }
+
+    @Test void unexpectedFailureIsRecordedAndSanitized() {
+        var request = createRequest(null, "qwen3", "secret prompt");
+        when(routingEngine.resolve(request)).thenThrow(new RuntimeException("SECRET_INTERNAL"));
+        assertThatThrownBy(() -> inferenceService.infer(request, "req_unexpected"))
+                .hasMessage("An unexpected error occurred");
+        verify(requestLogService).log(eq("req_unexpected"), isNull(), eq("qwen3"), eq("FAILURE"), eq("INTERNAL_ERROR"), anyInt());
+    }
+
+    @Test void diagnosticFailurePreservesProviderOutcome() {
+        var request = createRequest(null, "qwen3", "hello");
+        when(routingEngine.resolve(request)).thenReturn(new RoutingResult(mockProvider, "ollama-local"));
+        when(mockProvider.infer(request)).thenReturn(InferenceResponse.builder().text("ok").build());
+        doThrow(new RuntimeException("SECRET_DB_ERROR")).when(requestLogService).log(any(), any(), any(), any(), any(), anyInt());
+        assertThat(inferenceService.infer(request, "req_logfail").getText()).isEqualTo("ok");
+        assertThat(meters.get("gateway.diagnostics.dropped").counter().count()).isEqualTo(1);
+        verify(requestLogService, times(1)).log(any(), any(), any(), any(), any(), anyInt());
+    }
+
+    @Test void diagnosticFailurePreservesOriginalProviderFailure() {
+        var request = createRequest(null, "qwen3", "hello");
+        var failure = new GatewayException(ErrorCode.PROVIDER_TIMEOUT, "Provider request timed out");
+        when(routingEngine.resolve(request)).thenReturn(new RoutingResult(mockProvider, "ollama-local"));
+        when(mockProvider.infer(request)).thenThrow(failure);
+        doThrow(new RuntimeException("SECRET_DB_ERROR")).when(requestLogService).log(any(), any(), any(), any(), any(), anyInt());
+        assertThatThrownBy(() -> inferenceService.infer(request, "req_bothfail")).isSameAs(failure);
+        verify(requestLogService, times(1)).log(eq("req_bothfail"), any(), any(), eq("FAILURE"), eq("PROVIDER_TIMEOUT"), anyInt());
     }
 
     @Test
@@ -92,7 +124,7 @@ class InferenceServiceTest {
     }
 
     @Test
-    void infer_routingFailure_throwsWithoutLogging() {
+    void infer_routingFailure_recordsTerminalFailure() {
         InferenceRequest request = createRequest("nonexistent", "qwen3", "Hello");
         String requestId = "req_route789";
 
@@ -103,8 +135,8 @@ class InferenceServiceTest {
                 .isInstanceOf(GatewayException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PROVIDER_NOT_FOUND);
 
-        // No log written because provider was never resolved
-        verifyNoInteractions(requestLogService);
+        verify(requestLogService).log(eq(requestId), isNull(), eq("qwen3"), eq("FAILURE"),
+                eq("PROVIDER_NOT_FOUND"), anyInt());
     }
 
     @Test

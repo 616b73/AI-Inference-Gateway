@@ -1,0 +1,34 @@
+{
+  "scope" : "loopback HTTP, real BCrypt, H2 diagnostic writes, synthetic Ollama; not production capacity",
+  "java" : "21.0.7",
+  "os" : "Windows 11",
+  "cpus" : 24,
+  "inputCharacters" : 1024,
+  "warmupRequests" : 20,
+  "directSequential" : {
+    "p95Ms" : 1.1284,
+    "requests" : 100,
+    "p50Ms" : 0.5503,
+    "p99Ms" : 1.9713,
+    "requestsPerSecond" : 1479.3118241394104,
+    "concurrency" : 1
+  },
+  "gatewaySequential" : {
+    "p95Ms" : 60.2384,
+    "requests" : 100,
+    "p50Ms" : 51.787,
+    "p99Ms" : 64.8518,
+    "requestsPerSecond" : 18.80761454109966,
+    "concurrency" : 1
+  },
+  "gatewayConcurrent" : {
+    "p95Ms" : 59.1312,
+    "requests" : 100,
+    "p50Ms" : 54.558,
+    "p99Ms" : 62.0245,
+    "requestsPerSecond" : 177.08263791505735,
+    "concurrency" : 10
+  },
+  "heapUsedBytesAtEnd" : 72000456,
+  "maxHeapBytes" : 4215275520
+}

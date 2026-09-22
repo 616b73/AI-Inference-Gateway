@@ -8,7 +8,8 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
+import tools.jackson.databind.ObjectMapper;
+import org.springframework.context.annotation.DependsOn;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -22,22 +23,25 @@ import java.util.Optional;
  * appropriate adapter for each based on the provider type.
  */
 @Service
+@DependsOn("databaseBootstrap")
 public class ProviderRegistry {
 
     private static final Logger log = LoggerFactory.getLogger(ProviderRegistry.class);
 
     private final ProviderConfigRepository providerConfigRepository;
     private final ModelConfigRepository modelConfigRepository;
-    private final RestClient.Builder restClientBuilder;
+    private final ProviderTransport transport;
+    private final ObjectMapper mapper;
 
     private Map<String, AIProvider> providers = Collections.emptyMap();
 
     public ProviderRegistry(ProviderConfigRepository providerConfigRepository,
                             ModelConfigRepository modelConfigRepository,
-                            RestClient.Builder restClientBuilder) {
+                            ProviderTransport transport, ObjectMapper mapper) {
         this.providerConfigRepository = providerConfigRepository;
         this.modelConfigRepository = modelConfigRepository;
-        this.restClientBuilder = restClientBuilder;
+        this.transport = transport;
+        this.mapper = mapper;
     }
 
     @PostConstruct
@@ -80,7 +84,7 @@ public class ProviderRegistry {
 
     private AIProvider createAdapter(ProviderConfig config) {
         return switch (config.getType().toLowerCase()) {
-            case "ollama" -> new OllamaProvider(config, modelConfigRepository, restClientBuilder);
+            case "ollama" -> new OllamaProvider(config, modelConfigRepository, transport, mapper);
             default -> {
                 log.warn("Unknown provider type '{}' for provider '{}' — skipping",
                         config.getType(), config.getName());

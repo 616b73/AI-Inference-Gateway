@@ -38,7 +38,7 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("PROVIDER_NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Test provider not found"))
+                .andExpect(jsonPath("$.message").value("Provider not found or not active"))
                 .andExpect(jsonPath("$.path").value("/test/provider-not-found"))
                 .andExpect(jsonPath("$.requestId").value(startsWith("req_")))
                 .andExpect(jsonPath("$.timestamp").exists());
@@ -51,7 +51,7 @@ class GlobalExceptionHandlerTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.error").value("BAD_CONFIGURATION"))
-                .andExpect(jsonPath("$.message").value("No default provider"))
+                .andExpect(jsonPath("$.message").value("Gateway configuration is invalid"))
                 .andExpect(jsonPath("$.requestId").value(startsWith("req_")));
     }
 
@@ -76,11 +76,24 @@ class GlobalExceptionHandlerTest {
                 .andExpect(header().string("X-Request-Id", startsWith("req_")));
     }
 
+    @Test void forbiddenIsSafeAndCorrelated() throws Exception {
+        mockMvc.perform(get("/test/forbidden"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.message").value(not(containsString("SECRET"))))
+                .andExpect(header().string("X-Request-Id", startsWith("req_")));
+    }
+
     /**
      * Fake controller used only by these tests to trigger specific exceptions.
      */
     @RestController
     static class TestController {
+
+        @GetMapping("/test/forbidden")
+        public String forbidden() {
+            throw new org.springframework.security.access.AccessDeniedException("SECRET_RESOURCE");
+        }
 
         @GetMapping("/test/provider-not-found")
         public String providerNotFound() {

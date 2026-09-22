@@ -3,7 +3,7 @@
 
 ### ─── Health Check (no auth required) ───
 
-GET http://localhost:8080/actuator/health
+GET http://localhost:9090/actuator/health
 
 ###
 

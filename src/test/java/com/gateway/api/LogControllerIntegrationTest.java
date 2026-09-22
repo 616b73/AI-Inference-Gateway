@@ -9,7 +9,7 @@ import com.gateway.provider.ProviderRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -96,6 +96,17 @@ class LogControllerIntegrationTest {
     }
 
     // --- Pagination tests ---
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "page=-1", "page=invalid", "size=0", "size=-1", "status=INVALID",
+            "from=not-a-date", "from=2026-09-02T00:00:00&to=2026-09-01T00:00:00"})
+    void rejectsInvalidFiltersWithSafe400(String query) throws Exception {
+        mockMvc.perform(get(LOGS_URL + "?" + query).header("X-API-Key", VALID_RAW_KEY))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("INVALID_REQUEST"))
+                .andExpect(header().exists("X-Request-Id"));
+    }
 
     @Test
     void getLogs_defaultPagination_returns200WithAllEntries() throws Exception {

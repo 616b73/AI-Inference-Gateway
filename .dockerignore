@@ -1,4 +1,10 @@
-target/
+target/*
+!target/ai-inference-gateway-0.0.1-SNAPSHOT.jar
+.build-cache/
+*.log
+.agents/
+.codex/
+.github/
 .git/
 .gitignore
 .idea/

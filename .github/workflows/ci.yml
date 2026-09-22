@@ -1,0 +1,87 @@
+name: Foundation verification
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: foundation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-disposable-only
+          POSTGRES_DB: gateway_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: jdbc:postgresql://localhost:5432/gateway_test
+      TEST_DATABASE_USER: postgres
+      TEST_DATABASE_PASSWORD: ci-disposable-only
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build and test including PostgreSQL migrations
+        run: sh mvnw -B -Ppostgres-it verify
+      - name: Artifact manifest
+        run: python3 scripts/release_manifest.py target/ai-inference-gateway-0.0.1-SNAPSHOT.jar
+      - name: Build container
+        run: docker build --target packaged -t gateway:ci .
+      - name: Dependency secret and configuration scan
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297
+        with:
+          scan-type: fs
+          version: v0.74.0
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          skip-dirs: .git,.build-cache,.cache
+          format: json
+          output: target/source-scan.json
+      - name: Container vulnerability scan
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297
+        with:
+          image-ref: gateway:ci
+          version: v0.74.0
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          format: json
+          output: target/image-scan.json
+      - name: Container SBOM
+        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297
+        with:
+          image-ref: gateway:ci
+          version: v0.74.0
+          format: cyclonedx
+          output: target/container-sbom.json
+          exit-code: '0'
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: foundation-evidence
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+            target/release-manifest.json
+            target/container-sbom.json
+            target/source-scan.json
+            target/image-scan.json

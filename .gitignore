@@ -1,6 +1,6 @@
 # Maven
+.build-cache/
 target/
-!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
@@ -9,6 +9,15 @@ target/
 *.jar
 *.war
 *.ear
+# Keep the wrapper binary versionable if the wrapper distribution type changes.
+!.mvn/wrapper/maven-wrapper.jar
+*.hprof
+
+# Local tooling and CI scanner caches
+/.cache/
+__pycache__/
+*.pyc
+*.pyo
 
 # IDE - IntelliJ
 .idea/
@@ -30,6 +39,8 @@ Thumbs.db
 
 # Environment
 .env
+.env.*
+!.env.example
 
 # Logs
 *.log
