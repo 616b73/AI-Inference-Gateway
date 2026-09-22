@@ -3,7 +3,7 @@ package com.gateway.auth;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.MediaType;
@@ -78,7 +78,7 @@ class ApiKeyFilterIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
-                .andExpect(jsonPath("$.message").value("Missing API key — provide X-API-Key header"))
+                .andExpect(jsonPath("$.message").value("Missing or invalid API key"))
                 .andExpect(jsonPath("$.path").value("/v1/test-auth"))
                 .andExpect(jsonPath("$.requestId").value(startsWith("req_")))
                 .andExpect(jsonPath("$.timestamp").exists());
@@ -92,7 +92,7 @@ class ApiKeyFilterIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
-                .andExpect(jsonPath("$.message").value("Invalid API key"))
+                .andExpect(jsonPath("$.message").value("Missing or invalid API key"))
                 .andExpect(jsonPath("$.requestId").value(startsWith("req_")));
     }
 
@@ -128,7 +128,7 @@ class ApiKeyFilterIntegrationTest {
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
-                .andExpect(jsonPath("$.message").value("Missing API key — provide X-API-Key header"));
+                .andExpect(jsonPath("$.message").value("Missing or invalid API key"));
     }
 
     @Test

@@ -57,6 +57,10 @@ Roadmap.md always has these sections in this order:
 
 Every milestone must have at minimum: **Goal**, **What was done**, and **Key decisions**. Optional subsections: **Known issues / follow-ups**, **Tests**.
 
-## Documentation-First Rule
+## Product Development Workflow
 
-Read `PRD.md`, `Architecture.md`, `Rules.md`, and `Phases.md` before implementing any feature. If a proposed change adds scope, update documentation first — code changes follow doc changes, not the other way around.
+Read the relevant current documents in `Documentation/`: `PRD.md`, `Architecture.md`, `Phases.md`, and `Development.md`. Update product/design documentation before or alongside meaningful scope changes. Routine implementation choices and fixes do not require a new approval or planning ceremony.
+
+The deleted rules file is retired. Its fixed library allowlist, MVP-only scope restrictions, exact folder prescriptions, and one-phase-at-a-time execution rule no longer apply. Phases define dependencies and release gates; independent work may proceed concurrently once contracts are settled. Choose tools and libraries using maintainability, compatibility, security, and measured need.
+
+Keep current implementation, planned capabilities, and measured release evidence distinct. Preserve the historical milestones and maintain Roadmap as described above. Actual environment permissions and user authorization still govern production, destructive, and externally charged actions.

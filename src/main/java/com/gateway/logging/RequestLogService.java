@@ -7,6 +7,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import com.gateway.error.ErrorCode;
+import com.gateway.error.GatewayException;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -69,10 +71,15 @@ public class RequestLogService {
      */
     public Page<RequestLog> getLogs(int page, int size, String provider,
                                     String status, LocalDateTime from, LocalDateTime to) {
+        if (page < 0 || size < 1 || (provider != null && provider.length() > 200)
+                || (status != null && !status.equals("SUCCESS") && !status.equals("FAILURE"))
+                || (from != null && to != null && from.isAfter(to))) {
+            throw new GatewayException(ErrorCode.INVALID_REQUEST, ErrorCode.INVALID_REQUEST.safeMessage());
+        }
         int cappedSize = Math.min(size, 100);
         PageRequest pageRequest = PageRequest.of(page, cappedSize, Sort.by(Sort.Direction.DESC, "timestamp"));
 
-        Specification<RequestLog> spec = Specification.where(null);
+        Specification<RequestLog> spec = Specification.unrestricted();
 
         if (provider != null && !provider.isBlank()) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("provider"), provider));

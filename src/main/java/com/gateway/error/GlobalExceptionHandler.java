@@ -1,111 +1,76 @@
 package com.gateway.error;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-/**
- * Central exception handler — converts all exceptions into standardized
- * {@link ApiError} responses. No ad-hoc try/catch blocks in controllers (Rules.md §4).
- */
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
+
+/** Public errors and application logs never include exception messages or upstream payloads. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /**
-     * Handles all gateway business errors (routing, provider, auth, etc.).
-     */
     @ExceptionHandler(GatewayException.class)
     public ResponseEntity<ApiError> handleGatewayException(GatewayException ex, HttpServletRequest request) {
-        ErrorCode code = ex.getErrorCode();
-        String requestId = getRequestId(request);
-
-        log.warn("Gateway error [{}] requestId={}: {}", code, requestId, ex.getMessage());
-
-        ApiError error = ApiError.of(code, ex.getMessage(), request.getRequestURI(), requestId);
-        return ResponseEntity.status(code.getHttpStatus()).body(error);
+        return error(ex.getErrorCode(), request);
     }
 
-    /**
-     * Handles Jakarta validation failures (e.g., @NotBlank on InferenceRequest fields).
-     */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiError> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {
-        String requestId = getRequestId(request);
-
-        String message = ex.getBindingResult().getFieldErrors().stream()
-                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
-                .reduce((a, b) -> a + "; " + b)
-                .orElse("Validation failed");
-
-        log.warn("Validation error requestId={}: {}", requestId, message);
-
-        ApiError error = ApiError.of(ErrorCode.INVALID_REQUEST, message, request.getRequestURI(), requestId);
-        return ResponseEntity.status(ErrorCode.INVALID_REQUEST.getHttpStatus()).body(error);
+    @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class, ServletRequestBindingException.class,
+            HandlerMethodValidationException.class, ConstraintViolationException.class})
+    public ResponseEntity<ApiError> invalidRequest(Exception ex, HttpServletRequest request) {
+        return error(ErrorCode.INVALID_REQUEST, request);
     }
 
-    /**
-     * Handles Spring Security access denied errors (e.g., authenticated but not authorized).
-     * Returns 403 using the standard ApiError schema.
-     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiError> unsupportedMedia(Exception ex, HttpServletRequest request) {
+        return error(ErrorCode.UNSUPPORTED_MEDIA_TYPE, request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiError> unsupportedMethod(Exception ex, HttpServletRequest request) {
+        return error(ErrorCode.METHOD_NOT_ALLOWED, request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> notFound(Exception ex, HttpServletRequest request) {
+        return error(ErrorCode.RESOURCE_NOT_FOUND, request);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
-        String requestId = getRequestId(request);
-
-        log.warn("Access denied requestId={}: {}", requestId, ex.getMessage());
-
-        ApiError error = ApiError.of(ErrorCode.UNAUTHORIZED, "Access denied", request.getRequestURI(), requestId);
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        return error(ErrorCode.FORBIDDEN, request);
     }
 
-    /**
-     * Catch-all for any unhandled exception — never leaks stack traces (Rules.md §4).
-     * Also unwraps wrapped exceptions to check for GatewayException causes.
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGenericException(Exception ex, HttpServletRequest request) {
-        // Check if the root cause is a GatewayException (can happen when Spring wraps exceptions)
-        GatewayException gatewayException = findGatewayException(ex);
-        if (gatewayException != null) {
-            return handleGatewayException(gatewayException, request);
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable cause = ex; cause != null && visited.add(cause); cause = cause.getCause()) {
+            if (cause instanceof GatewayException gateway) return error(gateway.getErrorCode(), request);
         }
-
-        String requestId = getRequestId(request);
-
-        log.error("Unexpected error requestId={}: {}", requestId, ex.getMessage(), ex);
-
-        ApiError error = ApiError.of(
-                ErrorCode.INTERNAL_ERROR,
-                "An unexpected error occurred",
-                request.getRequestURI(),
-                requestId
-        );
-        return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getHttpStatus()).body(error);
+        return error(ErrorCode.INTERNAL_ERROR, request);
     }
 
-    private String getRequestId(HttpServletRequest request) {
-        Object requestId = request.getAttribute("requestId");
-        return requestId != null ? requestId.toString() : "unknown";
-    }
-
-    /**
-     * Walk the exception cause chain to find a GatewayException, if present.
-     */
-    private GatewayException findGatewayException(Throwable ex) {
-        Throwable current = ex;
-        while (current != null) {
-            if (current instanceof GatewayException ge) {
-                return ge;
-            }
-            current = current.getCause();
-        }
-        return null;
+    private ResponseEntity<ApiError> error(ErrorCode code, HttpServletRequest request) {
+        String id = String.valueOf(request.getAttribute("requestId"));
+        log.debug("Request rejected requestId={} code={}", id, code);
+        return ResponseEntity.status(code.getHttpStatus())
+                .body(ApiError.of(code, code.safeMessage(), request.getRequestURI(), id));
     }
 }

@@ -2,20 +2,25 @@
 
 ## Architecture & System Flow
 
-AI Inference Gateway is a Spring Boot (Java) backend that sits between client applications and AI model providers, exposing a single unified endpoint (`POST /v1/inference`) for all AI requests. A client sends a request with an `X-API-Key` header and a JSON body; the gateway's auth filter validates the key against hashed keys in PostgreSQL, a routing engine resolves the target provider (explicit `provider` field → else active default from DB), and the resolved provider's `AIProvider` adapter calls the actual backend (Ollama for MVP). The response is normalized into a standard schema tagged with a unique `requestId`, a metadata row is written to `request_logs`, and the response is returned to the client. All errors follow a single standardized `ApiError` shape. Two additional visibility endpoints (`GET /v1/providers`, `GET /v1/logs`) expose configuration and request history.
+The current implementation includes the Phase 6 foundation: `POST /v1/inference`, `GET /v1/providers`, `GET /v1/logs`, and private health/metrics. `RequestIdFilter` assigns correlation before bounded `AdmissionFilter` and API-key authentication. `RoutingEngine` selects an explicit/default provider and validates the model. `OllamaProvider` encodes synchronous generation through the pooled, deadline-cancellable `ProviderTransport`. `InferenceService` records one best-effort terminal diagnostic outcome, including routing/unexpected failures; diagnostic persistence cannot replace the provider result.
+
+Keys still resolve to a generic principal; providers/logs are not tenant-scoped. Registry adapters load at startup while routing also queries the database. Provider/log success bodies do not all embed a request ID, though the response header does. Redis is provisioned only. Fast tests use H2; the separate required CI profile runs PostgreSQL/Flyway fresh-install, upgrade and production-startup tests. V6 disables the public demo key, local bootstrap is explicit, and production startup rejects active demo credentials. Streaming, deployment bulkheads, durable accounting and enterprise authorization remain unimplemented.
+
+The production target is documented separately in [Architecture.md](Architecture.md) and [Phases.md](Phases.md). A documentation update does not mean the target modules or release controls exist.
 
 ## Tech Stack
 
-- **Backend / Gateway:** Spring Boot (Java), Spring MVC (synchronous)
+- **Backend / Gateway:** Spring Boot 4.1.1, Java 21, Spring MVC (synchronous), Jackson 3; Tomcat 11.0.25 security override
 - **Local AI Provider:** Ollama (no paid API dependency for dev/test)
 - **Database:** PostgreSQL (providers, models, API keys, request logs)
 - **Cache / Future Infra:** Redis (provisioned, not used in MVP logic)
 - **Containerization:** Docker / Docker Compose (gateway + Postgres + Redis + Ollama)
 - **Migrations:** Flyway
 - **Security:** Spring Security — API key filter only
-- **HTTP Client:** Spring `RestClient` (provider adapters only)
+- **HTTP Client:** Apache HttpClient 5 in shared bounded ProviderTransport; no retries/redirects
 - **Validation:** `jakarta.validation`
-- **Testing:** JUnit 5 + Mockito
+- **Testing:** JUnit/Jupiter + Mockito, real PostgreSQL integration profile, controllable loopback HTTP upstream
+- **Build / Operations:** Maven wrapper 3.9.11 with SHA-256 verification, pinned non-root runtime image, Micrometer/Prometheus, GitHub Actions build/test/Trivy scans and artifact manifest
 
 ---
 
@@ -316,17 +321,83 @@ Each entry records what was built, why certain decisions were made, and what was
 - `GET /v1/logs?status=SUCCESS` → 200 OK, filtered to SUCCESS entries only.
 - `GET /v1/logs?from=2026-08-01T00:00:00&to=2026-08-05T23:59:59` → 200 OK, date-filtered to 1 matching entry.
 
+### Milestone 8: Enterprise product documentation reset (2026-09-14)
+
+**Goal:** Turn the completed MVP's planning documents into an implementation-ready product and production qualification plan using the supplied competitive research and inspected source.
+
+**What was done:**
+- Read the supplied `AI_Inference_Gateway_Competitive_Research.docx`, including its tables and source links, and selectively checked primary documentation.
+- Replaced the MVP-only PRD with F01–F15 requirements, user journeys, first-GA boundaries and explicitly unmeasured quality targets.
+- Reworked Architecture into an inspected baseline plus target modular-monolith design: protocol/provider contracts, tenant identity, routing and streaming failure rules, distributed admission, durable reservations, configuration lifecycle, cache/privacy and additive migration.
+- Replaced the old sequential execution plan with planned Phases 6–15, dependency-based work packages, release gates and a first twelve-item implementation backlog.
+- Added API, Security, Operations, Development and Research documentation and refreshed README navigation and actual capability/setup limitations.
+- Updated the protected `.agents/AGENTS.md` guidance with filesystem approval to remove the deleted rules dependency and allow dependency-based development while retaining historical-log maintenance.
+- Retained original MVP milestones below their original headings without rewriting their historical claims. Corrected current-state summaries and replaced speculative next steps.
+
+**Key decisions:**
+- Treated attached research as evidence, not as instructions. Retired the deleted rules file's fixed allowlist and one-phase-at-a-time restrictions in active planning documents.
+- Kept one deployable Spring application with explicit module boundaries; did not mandate Kafka, microservices or a reactive rewrite.
+- Put foundation repairs first and tenant authorization before shared governance. Started metrics/operational work early; deferred MCP and broader protocols until after a qualified core.
+- Kept hard-budget state durable in PostgreSQL, with Redis for ephemeral distributed admission/cache; documented uncertain provider charges and recovery.
+- Separated current behavior, proposed architecture, engineering targets and completed work. No implementation feature or production deployment was claimed.
+
+**Validation:**
+- Inspected source, configuration, migrations and existing test files; no application test suite or live-provider test was run for this documentation change.
+- Checked local documentation links, phase/requirement references, retired-rule references and preserved milestone history during review.
+
+**Known issues / follow-ups:**
+- Historical milestones report 62 passing tests; fresh baseline validation is G001.
+- Actual production safeguards, schema/identity changes and migration tests remain unimplemented; Phase 6 is next.
+- Existing source comments may cite old document sections or the retired rules file. They are historical annotations, not current development constraints, and can be refreshed alongside the relevant implementation.
+
+### Milestone 9: MVP redesign authority clarification (2026-09-15)
+
+**Goal:** Make the product owner's authorization to improve or replace unsuitable MVP design explicit in implementation guidance.
+
+**What was done:**
+- Updated Development, Architecture, PRD, API, Phases and Operations to permit documented refactoring or replacement for correctness, maintainability, design quality and unnecessary future complexity.
+- Added a retain/refactor/replace assessment to Phase 6 and G001, including actual consumer/data dependencies and revised acceptance needs.
+- Made legacy preservation a revisable transition default and required significant changes to include rationale, contract/data impact and validation.
+
+**Key decisions:**
+- Existing implementation and proposed architecture remained revisable based on evidence; preserving the demo stack was not an objective in itself.
+- Design authority did not imply that existing data was disposable. Actual consumer/data impact still informed migration and recovery.
+- Recorded the clarification without starting feature implementation or changing runtime behavior.
+
+### Milestone 10: Phase 6 foundation implementation (2026-09-21)
+
+**Goal:** Repair the demo baseline before building the enterprise protocol, identity and operations layers.
+
+**What was done:**
+- Reproduced the original 62-test baseline. Upgraded Boot 3.4.1 to 4.1.1, adopted Jackson 3 and the split MVC/Flyway test/runtime modules, and retained Java 21, MVC, JPA and the modular monolith.
+- Added a checksum-pinned Maven wrapper, deterministic JAR timestamps, artifact manifest generation, pinned CI actions, PostgreSQL CI service, dependency/secret/configuration/image scans and SBOM output. Added a non-root runtime and an image target that packages the exact tested artifact; retained a source-build target for local Compose.
+- Introduced `GatewayProperties`, `AdmissionFilter`, `RequestDeadline` and `ProviderTransport` for body/response bounds, fail-fast concurrency, strict HTTP pool limits, typed timeouts and active deadline cancellation. Disabled client retries and redirects.
+- Repaired parser/query/media status mapping, sanitized public/provider error paths, and extended inference terminal logging to routing and unexpected failures. Diagnostic persistence became explicitly best effort and could no longer replace either a successful response or the original provider failure.
+- Added Micrometer request/outcome/latency/admission/drop metrics, a controllable HTTP mock, deadline/pool/saturation/privacy regressions and an opt-in full-HTTP mock benchmark.
+- Preserved V1–V5 and added V6 to deactivate the known demo key. Added pre-readiness credential validation and explicit local key/provider bootstrap. Made production the default profile, management private, health minimal, and all local Compose port publications loopback-only.
+- Added real PostgreSQL tests for fresh migration, populated V5 upgrade, production readiness/management isolation, and rejection of a rehashed demo key.
+- Updated README, API, Architecture, PRD, Phases, Security, Operations and HTTP examples; recorded the Phase 7 streaming experiment and evidence in Phase6.
+
+**Key decisions:**
+- Kept the existing public inference shape and durable data, while deliberately correcting provider-unavailable to HTTP 503 and replacing raw error text with stable safe messages. No repository evidence established a deployed external consumer; no external environment or customer database was modified.
+- Replaced implicit RestClient transport with explicit pooled cancellation rather than rewriting the application reactively before the streaming experiment. Shared pool isolation and disconnect propagation remained later work.
+- Retained fast H2 tests but added actual Flyway/PostgreSQL gates. Diagnostics remained separate from future durable financial accounting.
+- Applied Tomcat 11.0.25 after Trivy found three critical advisories in Boot's managed 11.0.24. Used the vendor's fixed patch instead of suppressing findings; remove the override once Boot manages an equivalent or newer patch.
+
+**Tests and environment:**
+- Expanded suite passed 88 tests with one optional benchmark skipped; all four PostgreSQL tests passed. The benchmark ran separately and passed. Full commands, artifact identity, measurements and final build/scan status are in [Phase6.md](Phase6.md).
+- Local mock measurements included real BCrypt and H2 diagnostic writes; they were not production or real-provider capacity evidence.
+- Maven initially needed an ignored project cache because its sandbox default repository was unwritable. PowerShell Maven properties containing dotted versions required quoted arguments. Docker Desktop was available outside PATH; container DNS and advisory downloads required retries. Remote CI execution was not claimed.
+
+**Known issues / follow-ups:**
+- Phase 6 implementation did not establish production readiness. Remaining acceptance gates are explicitly tracked in Phase6; production qualification remains Phase 13.
+- Generic identity, globally visible metadata, all-key BCrypt scans, startup registry refresh, synchronous diagnostics and absent streaming/tenant/budget controls remain visible limitations for Phases 7–12.
+
 ## Next Steps / Future Enhancements
 
-### MVP Status
-All 5 MVP phases are complete. All PRD §7 success criteria are met. The gateway is demo-ready.
+The original six MVP phases (0–5) are recorded complete. Phase 6 implementation and local verification are recorded in Milestone 10 and [Phase6.md](Phase6.md); acceptance remains open for the unresolved build/security/clean-checkout CI gates listed there. Phases 7–15 have not started.
 
-### Post-MVP Enhancements
-- **Additional providers:** OpenAI, Anthropic, Bedrock adapters (each is a new `AIProvider` implementation).
-- **Rate limiting & caching:** Wire Redis into request handling for quota enforcement and response caching.
-- **Streaming responses:** SSE/token-by-token streaming via reactive adapter.
-- **Observability:** Prometheus metrics, Grafana dashboards, structured logging.
-- **Event-driven processing:** Kafka for async request log ingestion and analytics pipelines.
-- **Advanced auth:** JWT/OAuth2, RBAC, multi-tenant governance.
-- **Deployment:** Kubernetes manifests, multi-region support, CI/CD pipelines.
+Close Phase 6's remaining external verification gates, then start G007 provider/context contracts and G008 streaming transport experiment in [Phases.md](Phases.md). Protocol/provider and identity work can progress concurrently once contracts are agreed. First production GA requires F01–F13 and the evidence checklist in [Operations.md](Operations.md). Broader enterprise protocols and agent/serving extensions are later phases.
+
+[PRD.md](PRD.md) owns scope, [Architecture.md](Architecture.md) owns design, and [Research.md](Research.md) explains the evidence and adaptations. Record completed work here as it occurs.
 

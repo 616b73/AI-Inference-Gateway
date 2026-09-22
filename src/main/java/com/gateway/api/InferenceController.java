@@ -34,7 +34,7 @@ public class InferenceController {
      * @param httpRequest provides the requestId set by {@link com.gateway.common.RequestIdFilter}
      * @return 200 with the standardized {@link InferenceResponse}
      */
-    @PostMapping("/inference")
+    @PostMapping(value = "/inference", consumes = "application/json", produces = "application/json")
     public ResponseEntity<InferenceResponse> infer(
             @Valid @RequestBody InferenceRequest request,
             HttpServletRequest httpRequest) {

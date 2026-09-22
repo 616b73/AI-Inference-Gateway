@@ -13,7 +13,7 @@ import com.gateway.provider.ProviderRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -132,6 +132,43 @@ class InferenceControllerIntegrationTest {
                 .andExpect(jsonPath("$.provider").value("ollama-local"))
                 .andExpect(jsonPath("$.requestId").value(startsWith("req_")))
                 .andExpect(jsonPath("$.latencyMs").isNumber());
+    }
+
+    @Test void malformedJsonReturnsSafe400() throws Exception {
+        mockMvc.perform(post(INFERENCE_URL).header("X-API-Key", VALID_RAW_KEY)
+                .contentType(MediaType.APPLICATION_JSON).content("{SECRET_BODY"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid request parameters"));
+    }
+
+    @Test void unsupportedMediaReturns415() throws Exception {
+        mockMvc.perform(post(INFERENCE_URL).header("X-API-Key", VALID_RAW_KEY)
+                .contentType(MediaType.TEXT_PLAIN).content("SECRET_BODY"))
+                .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.status").value(415));
+    }
+
+    @Test void oversizedBodyIsRejectedBeforeProvider() throws Exception {
+        mockMvc.perform(post(INFERENCE_URL).header("X-API-Key", VALID_RAW_KEY)
+                .contentType(MediaType.APPLICATION_JSON).content("x".repeat(1048577)))
+                .andExpect(status().isPayloadTooLarge()).andExpect(header().exists("X-Request-Id"));
+        org.mockito.Mockito.verifyNoInteractions(mockProvider);
+        assertThat(requestLogRepository.count()).isZero();
+    }
+
+    @Test void upstreamFailureDoesNotLeakToResponseLogsOrDatabase() throws Exception {
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        var root = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+        appender.start(); root.addAppender(appender);
+        when(mockProvider.infer(any())).thenThrow(new com.gateway.error.GatewayException(
+                com.gateway.error.ErrorCode.PROVIDER_UNAVAILABLE, "SECRET_PROVIDER_RESPONSE"));
+        try {
+            mockMvc.perform(post(INFERENCE_URL).header("X-API-Key", VALID_RAW_KEY).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"model\":\"qwen3\",\"prompt\":\"SECRET_PROMPT\"}"))
+                    .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.message").value("Provider is unavailable"));
+            assertThat(appender.list).noneMatch(event -> event.getFormattedMessage().contains("SECRET_"));
+            assertThat(requestLogRepository.findAll()).singleElement()
+                    .satisfies(row -> assertThat(row.getErrorCode()).isEqualTo("PROVIDER_UNAVAILABLE"));
+        } finally { root.detachAppender(appender); appender.stop(); }
     }
 
     @Test
