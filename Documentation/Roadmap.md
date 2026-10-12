@@ -393,11 +393,24 @@ Each entry records what was built, why certain decisions were made, and what was
 - Phase 6 implementation did not establish production readiness. Remaining acceptance gates are explicitly tracked in Phase6; production qualification remains Phase 13.
 - Generic identity, globally visible metadata, all-key BCrypt scans, startup registry refresh, synchronous diagnostics and absent streaming/tenant/budget controls remain visible limitations for Phases 7–12.
 
+### Milestone 11: Phase 6 external verification closure (2026-09-22)
+
+**Goal:** Close the clean-checkout build, security-scan and artifact gates that remained open after the local Phase 6 implementation run.
+
+**What was done:**
+- Committed the Phase 6 implementation as `775bdfe4d1627708044017cbbb3749ef61cfbb18`, merged it through [pull request #1](https://github.com/616b73/AI-Inference-Gateway/pull/1), and established merge revision `80944edb37f439dd0f171dcf70da4ef0252b5738` on `main`.
+- Ran the `Foundation verification` workflow from a clean GitHub checkout. [Run 35695280770](https://github.com/616b73/AI-Inference-Gateway/actions/runs/35695280770) passed the PostgreSQL build/test profile, artifact manifest, container build, dependency/secret/configuration scan, full container vulnerability scan, container SBOM and evidence-preservation steps.
+- Updated the active status documents to mark Phase 6 accepted while retaining its operating limits and the distinction between foundation acceptance and production qualification.
+
+**Key decisions:**
+- Accepted Phase 6 using the merged `main` workflow evidence rather than treating the earlier partial local image scan as sufficient.
+- Kept production readiness explicitly open: provider compatibility, streaming, tenant isolation, durable accounting, recovery and production load evidence remain later-phase work.
+
 ## Next Steps / Future Enhancements
 
-The original six MVP phases (0–5) are recorded complete. Phase 6 implementation and local verification are recorded in Milestone 10 and [Phase6.md](Phase6.md); acceptance remains open for the unresolved build/security/clean-checkout CI gates listed there. Phases 7–15 have not started.
+The original six MVP phases (0–5) and the Phase 6 foundation are accepted. Phase 6 implementation and local verification are recorded in Milestone 10; its later clean-checkout build, security and SBOM closure is recorded in Milestone 11 and [Phase6.md](Phase6.md). Phases 7–15 have not started.
 
-Close Phase 6's remaining external verification gates, then start G007 provider/context contracts and G008 streaming transport experiment in [Phases.md](Phases.md). Protocol/provider and identity work can progress concurrently once contracts are agreed. First production GA requires F01–F13 and the evidence checklist in [Operations.md](Operations.md). Broader enterprise protocols and agent/serving extensions are later phases.
+Start G007 provider/context contracts and G008 streaming transport experiment in [Phases.md](Phases.md). Protocol/provider and identity work can progress concurrently once contracts are agreed. First production GA requires F01–F13 and the evidence checklist in [Operations.md](Operations.md). Broader enterprise protocols and agent/serving extensions are later phases.
 
 [PRD.md](PRD.md) owns scope, [Architecture.md](Architecture.md) owns design, and [Research.md](Research.md) explains the evidence and adaptations. Record completed work here as it occurs.
 
