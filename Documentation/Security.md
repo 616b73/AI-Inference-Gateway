@@ -1,10 +1,10 @@
 # Security and privacy design
 
-Updated 2026-09-21. This is the target security plan for Phases 6–13, except the implemented controls below. The current service has API-key authentication and metadata-only database logs, but no tenant isolation or administrative roles. Do not operate it as a shared enterprise service before the relevant gates pass.
+Updated 2026-10-26. This is the target security plan for Phases 6–13, except the implemented controls below. The current service has API-key authentication and metadata-only database logs, but no tenant isolation or administrative roles. Do not operate it as a shared enterprise service before the relevant gates pass.
 
 ## Implemented foundation controls
 
-Phase 6 adds bounded input/concurrency/provider I/O, disables automatic retries and redirects, sanitizes gateway public/provider errors, and keeps diagnostic failures from altering inference results. The demo key is disabled by additive V6 and rejected at nonlocal startup, including rehashed copies. Default production rejects the demo database password. Local bootstrap is explicit. Management health contains no components/details; metrics require a separate private listener. Container runtime identity is non-root and CI includes dependency/image/secret/configuration scans. See [Phase6.md](Phase6.md) for actual test/scan evidence and open gates.
+Phase 6 adds bounded input/concurrency/provider I/O, disables automatic retries and redirects, sanitizes gateway public/provider errors, and keeps diagnostic failures from altering inference results. The demo key is disabled by additive V6 and rejected at nonlocal startup, including rehashed copies. Default production rejects the demo database password. Local bootstrap is explicit. Management health contains no components/details; metrics require a separate private listener. Container runtime identity is non-root and CI includes dependency/image/secret/configuration scans. See [Phase6.md](Phase6.md) for acceptance evidence, re-verification and operating limits.
 
 These controls do not implement tenant isolation, indexed key lookup, network-aware SSRF policy, TLS ingress, secret management, spend limits or audit retention. A valid current key still sees global provider/log metadata. Provider endpoints remain operator-controlled database configuration; basic URI validation is not an SSRF allowlist. The shared HTTP pool is bounded but does not isolate individual deployments. Keep these limits explicit when running isolated previews.
 

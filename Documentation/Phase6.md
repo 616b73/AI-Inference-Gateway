@@ -1,6 +1,6 @@
 # Phase 6 implementation evidence
 
-Updated 2026-09-22. **Implementation and Phase 6 acceptance are complete.** Local regression, PostgreSQL, source scan, container OS scan, packaging and startup checks passed. Clean-checkout GitHub Actions verification then passed on the merged `main` revision, including the full container dependency scan and SBOM. This is foundation evidence, not production readiness.
+Updated 2026-10-26. **Implementation and Phase 6 acceptance are complete.** Local regression and PostgreSQL verification were repeated successfully on 2026-10-26. Current Trivy scans then identified five HIGH Jackson findings in the stale 3.1.5 dependency baseline and three HIGH findings in the pinned Alpine runtime. The Jackson BOM was raised to 3.1.8, the Temurin Alpine manifests were refreshed, the remaining fixed `brotli-libs` package was pinned, and the relevant verification was repeated. The original local source scan, container OS scan, packaging and startup checks passed, followed by clean-checkout GitHub Actions verification on the merged `main` revision, including the full container dependency scan and SBOM. This is foundation evidence, not production readiness.
 
 ## Baseline and design assessment
 
@@ -43,6 +43,19 @@ Environment: Windows 11, Java 21.0.7, Maven wrapper 3.9.11, Docker Desktop 4.90.
 | Runtime OS scan | Trivy 0.74.0: 73 Alpine packages checked; zero high/critical findings |
 | Full runtime dependency scan / SBOM | **Not verified locally**: Java index downloads from both official registries ended with unexpected EOF |
 | GitHub Actions clean-checkout verification | [Run 35695280770](https://github.com/616b73/AI-Inference-Gateway/actions/runs/35695280770) passed on merged `main` revision `80944ed`: PostgreSQL build/tests, artifact manifest, container build, dependency/secret/configuration scan, full container vulnerability scan, container SBOM and evidence preservation |
+
+### Local re-verification (2026-10-26)
+
+Revision `cf469207ffe4874df0a0eaa567dd1465499a15f9` plus the pending documentation and Jackson security refresh was re-verified on Windows 11 with Java 21.0.12.1, Maven 3.9.11, Docker Engine 29.8.2 and the pinned PostgreSQL 16.15 image. Maven used the existing project cache; this constrained runner supplied Mockito as a Java agent and allowed loopback networking explicitly.
+
+- `clean test`: 89 discovered, 88 passed, one opt-in benchmark skipped, zero failures/errors.
+- `-Ppostgres-it clean verify`: the same regular suite passed and all four PostgreSQL integration tests passed, covering a fresh V1–V6 install, populated V5→V6 upgrade, production startup and active-demo-credential rejection.
+- The opt-in `BaselineBenchmarkTest` passed again after the dependency refresh with 320 successful synthetic loopback calls including warm-up and rewrote the ignored `target/phase6-baseline.json` result.
+- The Jackson BOM override was raised from 3.1.5 to 3.1.8, clearing the five HIGH denial-of-service advisories reported by the failed GitHub source scan: CVE-2026-68497, CVE-2026-89407, CVE-2026-89425, CVE-2026-91776 and CVE-2026-91777.
+- A Trivy 0.74.0 offline source scan with a freshly downloaded vulnerability database reported zero HIGH/CRITICAL vulnerabilities, secrets or misconfigurations.
+- The refreshed online source gate passed. Its next container scan exposed fixed Alpine advisories CVE-2026-111497, CVE-2026-77214 and CVE-2026-93990; refreshing both Temurin Alpine manifest pins and pinning `brotli-libs` 1.2.1-r0 cleared all three in a local Trivy OS-package scan of the rebuilt image.
+
+The offline source scan warned that some parent-managed child dependency versions could not be resolved. A complementary executable-JAR scan could not initialize Trivy's Java advisory database because the registry download ended with an unexpected EOF. Consequently, the replacement commit's online GitHub Actions run remains the authoritative full dependency and image check; the full container dependency scan and SBOM were not regenerated locally. Release qualification must repeat all security gates against then-current advisories.
 
 Final JAR SHA-256: `ae60015186ed6b34b557ca1d0d23fc05567293efc1d719aad26459f399505aa8` (64,614,319 bytes). Final packaged image ID: `sha256:c0017a487d066808cb90721745876856d319d40ce857aa7156ac01163c6ed1fd`. These identify a local uncommitted build, not a signed release. `scripts/release_manifest.py` writes source revision/dirty state, artifact hash/size and toolchain target to `target/release-manifest.json`.
 

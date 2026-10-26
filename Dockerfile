@@ -1,5 +1,5 @@
 # Pinned multi-architecture base manifests; update through reviewed dependency maintenance.
-FROM eclipse-temurin:21-jdk-alpine@sha256:cd87715a8d45cfaa42419207c64680234f62785c49055cccd20437b5c9018380 AS build
+FROM eclipse-temurin:21-jdk-alpine@sha256:fd52084c35bbac78890d95d57707d31ffc9d7a3324199e89c06be2a9dc71bfa0 AS build
 WORKDIR /app
 COPY .mvn .mvn
 COPY mvnw pom.xml ./
@@ -8,8 +8,9 @@ COPY src ./src
 # CI runs the full suite (including PostgreSQL) before building the image.
 RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -DskipTests package
 
-FROM eclipse-temurin:21-jre-alpine@sha256:1a29e1fe337eb28b5bec30f0ee8ed29f0ff80ab6f75dcf9313efe82911065a52 AS runtime
+FROM eclipse-temurin:21-jre-alpine@sha256:b48e02e0ea88d7bfb305335df94923bdef394905f4147dccd52e873cf17b1088 AS runtime
 WORKDIR /app
+RUN apk add --no-cache --upgrade 'brotli-libs=1.2.1-r0'
 RUN addgroup -g 10001 gateway && adduser -D -H -u 10001 -G gateway gateway
 USER 10001:10001
 EXPOSE 8080 9090
