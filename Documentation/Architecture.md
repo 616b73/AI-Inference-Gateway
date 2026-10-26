@@ -1,6 +1,6 @@
 # AI Inference Gateway architecture
 
-Updated 2026-09-21. Sections explicitly marked **current** describe implemented Phase 6 code. All other sections describe the **target design**, to be implemented through [Phases.md](Phases.md). [Phase6.md](Phase6.md) records verification and open gates. [PRD.md](PRD.md) owns product scope; [API.md](API.md), [Security.md](Security.md), and [Operations.md](Operations.md) expand the contracts.
+Updated 2026-10-26. Sections explicitly marked **current** describe accepted Phase 6 code. All other sections describe the **target design**, to be implemented through [Phases.md](Phases.md). [Phase6.md](Phase6.md) records acceptance evidence, re-verification and operating limits. [PRD.md](PRD.md) owns product scope; [API.md](API.md), [Security.md](Security.md), and [Operations.md](Operations.md) expand the contracts.
 
 The product owner authorizes revising existing architecture and implementation when correctness, maintainability, sound design or future complexity warrants it. Decisions below are current design choices, not immutable constraints. Document significant replacements and their evidence using [Development.md](Development.md); keep dependent contracts, migrations and release gates aligned.
 

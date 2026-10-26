@@ -1,6 +1,6 @@
 # Phase 6 implementation evidence
 
-Updated 2026-09-21. **Implementation delivered; acceptance remains open for the full image dependency scan/SBOM and a clean-checkout remote CI run.** Local regression, PostgreSQL, source scan, container OS scan, packaging and startup checks passed. This is foundation evidence, not production readiness.
+Updated 2026-10-26. **Implementation and Phase 6 acceptance are complete.** Local regression and PostgreSQL verification were repeated successfully on 2026-10-26. Current Trivy scans then identified five HIGH Jackson findings in the stale 3.1.5 dependency baseline and three HIGH findings in the pinned Alpine runtime. The Jackson BOM was raised to 3.1.8, the Temurin Alpine manifests were refreshed, the remaining fixed `brotli-libs` package was pinned, and the relevant verification was repeated. The original local source scan, container OS scan, packaging and startup checks passed, followed by clean-checkout GitHub Actions verification on the merged `main` revision, including the full container dependency scan and SBOM. This is foundation evidence, not production readiness.
 
 ## Baseline and design assessment
 
@@ -27,7 +27,7 @@ The implementation keeps the legacy request/success/error shapes; deliberate com
 
 ## Observed verification
 
-Source base revision: `cb95950a2d78431656cb6ca4756a0b056c20bdc0`, **dirty working tree with these Phase 6 changes**. No new commit or remote workflow run was created. Logs and detailed Maven reports are local ignored build outputs; durable benchmark data is in [evidence/phase6-baseline.json](evidence/phase6-baseline.json).
+The original local evidence used source base revision `cb95950a2d78431656cb6ca4756a0b056c20bdc0` with the Phase 6 changes still in a dirty working tree. Logs and detailed Maven reports are local ignored build outputs; durable benchmark data is in [evidence/phase6-baseline.json](evidence/phase6-baseline.json). The changes were subsequently committed as `775bdfe4d1627708044017cbbb3749ef61cfbb18`, merged by [pull request #1](https://github.com/616b73/AI-Inference-Gateway/pull/1), and verified from the clean merge revision `80944edb37f439dd0f171dcf70da4ef0252b5738`.
 
 Environment: Windows 11, Java 21.0.7, Maven wrapper 3.9.11, Docker Desktop 4.90.0 / engine 29.7.2, PostgreSQL 16.15 (`postgres:16-alpine` pinned digest in CI). Runtime image: Temurin 21.0.12+8, Alpine 3.24.2, UID/GID 10001. Tests used a disposable PostgreSQL container on loopback port 15432 and random `p6_…` schemas; fixtures dropped only their own schemas. No existing database was reset.
 
@@ -42,11 +42,24 @@ Environment: Windows 11, Java 21.0.7, Maven wrapper 3.9.11, Docker Desktop 4.90.
 | Source security scan | Trivy 0.74.0: zero high/critical dependency, secret or configuration findings after Tomcat patch |
 | Runtime OS scan | Trivy 0.74.0: 73 Alpine packages checked; zero high/critical findings |
 | Full runtime dependency scan / SBOM | **Not verified locally**: Java index downloads from both official registries ended with unexpected EOF |
-| GitHub Actions clean-checkout verification | **Not run remotely**; workflow configured to fail on test failures or high/critical findings and retain reports |
+| GitHub Actions clean-checkout verification | [Run 35695280770](https://github.com/616b73/AI-Inference-Gateway/actions/runs/35695280770) passed on merged `main` revision `80944ed`: PostgreSQL build/tests, artifact manifest, container build, dependency/secret/configuration scan, full container vulnerability scan, container SBOM and evidence preservation |
+
+### Local re-verification (2026-10-26)
+
+Revision `cf469207ffe4874df0a0eaa567dd1465499a15f9` plus the pending documentation and Jackson security refresh was re-verified on Windows 11 with Java 21.0.12.1, Maven 3.9.11, Docker Engine 29.8.2 and the pinned PostgreSQL 16.15 image. Maven used the existing project cache; this constrained runner supplied Mockito as a Java agent and allowed loopback networking explicitly.
+
+- `clean test`: 89 discovered, 88 passed, one opt-in benchmark skipped, zero failures/errors.
+- `-Ppostgres-it clean verify`: the same regular suite passed and all four PostgreSQL integration tests passed, covering a fresh V1–V6 install, populated V5→V6 upgrade, production startup and active-demo-credential rejection.
+- The opt-in `BaselineBenchmarkTest` passed again after the dependency refresh with 320 successful synthetic loopback calls including warm-up and rewrote the ignored `target/phase6-baseline.json` result.
+- The Jackson BOM override was raised from 3.1.5 to 3.1.8, clearing the five HIGH denial-of-service advisories reported by the failed GitHub source scan: CVE-2026-68497, CVE-2026-89407, CVE-2026-89425, CVE-2026-91776 and CVE-2026-91777.
+- A Trivy 0.74.0 offline source scan with a freshly downloaded vulnerability database reported zero HIGH/CRITICAL vulnerabilities, secrets or misconfigurations.
+- The refreshed online source gate passed. Its next container scan exposed fixed Alpine advisories CVE-2026-111497, CVE-2026-77214 and CVE-2026-93990; refreshing both Temurin Alpine manifest pins and pinning `brotli-libs` 1.2.1-r0 cleared all three in a local Trivy OS-package scan of the rebuilt image.
+
+The offline source scan warned that some parent-managed child dependency versions could not be resolved. A complementary executable-JAR scan could not initialize Trivy's Java advisory database because the registry download ended with an unexpected EOF. Consequently, the replacement commit's online GitHub Actions run remains the authoritative full dependency and image check; the full container dependency scan and SBOM were not regenerated locally. Release qualification must repeat all security gates against then-current advisories.
 
 Final JAR SHA-256: `ae60015186ed6b34b557ca1d0d23fc05567293efc1d719aad26459f399505aa8` (64,614,319 bytes). Final packaged image ID: `sha256:c0017a487d066808cb90721745876856d319d40ce857aa7156ac01163c6ed1fd`. These identify a local uncommitted build, not a signed release. `scripts/release_manifest.py` writes source revision/dirty state, artifact hash/size and toolchain target to `target/release-manifest.json`.
 
-The source scan used a complete local Maven repository mounted at `/root/.m2/repository`, `--offline-scan`, a vulnerability DB updated 2026-09-21T07:13Z, and Trivy's embedded configuration checks after a policy download failed. It excluded `.git`, `.build-cache`, and generated `target` output. The independent OS scan explicitly excluded JARs; it is not a substitute for the pending full image scan. CI retains the full source/JAR/image scans and has no vulnerability suppression or `continue-on-error` bypass.
+The source scan used a complete local Maven repository mounted at `/root/.m2/repository`, `--offline-scan`, a vulnerability DB updated 2026-09-21T07:13Z, and Trivy's embedded configuration checks after a policy download failed. It excluded `.git`, `.build-cache`, and generated `target` output. The independent local OS scan explicitly excluded JARs and was not treated as a substitute for the full image scan; the later clean-checkout CI run completed the full container scan and SBOM. CI retains the source/JAR/image scan evidence and has no vulnerability suppression or `continue-on-error` bypass.
 
 ### Reproduction
 
@@ -66,11 +79,11 @@ The benchmark used loopback HTTP, synthetic Ollama output, a 1,024-character pro
 
 End-of-run used Java heap was 72,000,456 bytes, a snapshot rather than a peak-memory or leak measurement. Sequential gateway/direct p95 difference was approximately 59.11 ms; subtracting percentiles is only a comparison, not a paired per-request overhead distribution. The sequential gateway sample lasted approximately 5.3 seconds. This short closed workload does not validate the PRD's 100 requests/s, 200-stream, one-hour target or its ≤50 ms overhead goal. BCrypt verification and synchronous diagnostics are included; this experiment did not profile their individual contribution. CPU utilization, RSS, peak buffers and production PostgreSQL latency were not measured here.
 
-## Remaining acceptance and operating limits
+## Acceptance closure and operating limits
 
-1. Run the committed workflow from a clean checkout; retain its exact revision, test reports and scan artifacts. No remote CI result is implied by local success.
-2. Complete the full image dependency scan and container SBOM once the Java advisory database can be downloaded. Do not accept a partial scan or disable that gate to publish a release.
-3. Recheck dependency/base-image advisories at release time. Pins provide repeatability, not permanent security; maintain them.
+The two external Phase 6 gates left open by the local run were closed by [GitHub Actions run 35695280770](https://github.com/616b73/AI-Inference-Gateway/actions/runs/35695280770) on 2026-09-22. The workflow checked out merge revision `80944edb37f439dd0f171dcf70da4ef0252b5738` and passed the PostgreSQL build/test profile, dependency/secret/configuration scan, full container vulnerability scan, container SBOM and evidence-preservation steps without a bypass. Phase 6 is accepted on that evidence.
+
+Dependency and base-image advisories must still be rechecked at release time. Pins provide repeatability, not permanent security; maintain them.
 
 Immediate downstream disconnect cancellation, bounded stream writes, deployment-isolated pools, indexed identities, tenancy, durable usage/budgets, configuration refresh, recovery drills and production load/soak tests remain future phases. The current total deadline actively aborts upstream I/O but does not hard-limit all synchronous database work or downstream delivery. Local diagnostics can be dropped; they are not audit or billing records. No real Ollama/cloud-provider smoke test, full Compose model download, external consumer migration or production deployment was performed.
 

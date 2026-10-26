@@ -1,6 +1,6 @@
 # AI Inference Gateway product requirements
 
-Updated 2026-09-21. Status: product plan with Phase 6 foundation implemented; validation evidence and remaining gates are in [Phase6.md](Phase6.md). This document replaces the MVP-only scope. Production readiness is a release outcome to demonstrate, not a claim about the current code.
+Updated 2026-10-26. Status: product plan with the Phase 6 foundation accepted and re-verified; evidence and remaining operating limits are in [Phase6.md](Phase6.md). This document replaces the MVP-only scope. Production readiness is a release outcome to demonstrate, not a claim about the current code.
 
 ## Product direction
 

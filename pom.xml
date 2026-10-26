@@ -19,6 +19,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- Remove this override when Boot manages 3.1.8+; fixes the 2026 Jackson DoS advisories. -->
+        <jackson-bom.version>3.1.8</jackson-bom.version>
         <!-- Remove this override when Boot manages 11.0.25+; fixes the Phase 6 scan findings. -->
         <tomcat.version>11.0.25</tomcat.version>
         <project.build.outputTimestamp>2026-09-21T00:00:00Z</project.build.outputTimestamp>

@@ -1,6 +1,6 @@
 # AI Inference Gateway delivery phases
 
-Updated 2026-09-21. This is the forward implementation plan, not a completion log. **Phase 6 implementation is present with local test evidence; its remaining build/security/remote-CI gates are tracked in [Phase6.md](Phase6.md). Phases 7–15 have not started.** [Roadmap.md](Roadmap.md) preserves actual history. Requirement IDs refer to [PRD.md](PRD.md); technical decisions refer to [Architecture.md](Architecture.md).
+Updated 2026-10-26. This is the forward implementation plan, not a completion log. **Phase 6 is accepted and was re-verified locally on 2026-10-26; evidence is recorded in [Phase6.md](Phase6.md). Phases 7–15 have not started.** [Roadmap.md](Roadmap.md) preserves actual history. Requirement IDs refer to [PRD.md](PRD.md); technical decisions refer to [Architecture.md](Architecture.md).
 
 ## Working approach
 
@@ -21,7 +21,7 @@ Use small vertical slices with an owner, acceptance evidence, compatibility/migr
 | 4 | Provider/log visibility endpoints | Recorded complete |
 | 5 | Log filters, expanded tests and onboarding docs | Recorded complete |
 
-The original 62-test baseline was reproduced before Phase 6 changes. The expanded suite and PostgreSQL checks now pass; [Phase6.md](Phase6.md) records counts, environment, benchmark and remaining gates. None is production certification.
+The original 62-test baseline was reproduced before Phase 6 changes. The expanded suite, PostgreSQL checks, clean-checkout build, security scans and container SBOM passed; [Phase6.md](Phase6.md) records counts, environment, benchmark and CI evidence. None is production certification.
 
 ## Dependencies and releases
 
@@ -55,7 +55,7 @@ The graph describes **completion dependencies**. Observability, CI, operations, 
 
 ## Phase 6 Foundation and baseline repair
 
-**Status:** Implementation delivered and locally tested; acceptance remains open until every recorded build/scan gate and the clean-checkout CI workflow pass. This is not production readiness. See [Phase6.md](Phase6.md) for reproducible evidence and limitations.
+**Status:** Accepted. Implementation passed the recorded local checks and the clean-checkout GitHub Actions build, PostgreSQL tests, security scans and container SBOM on merged revision `80944ed`. This is not production readiness. See [Phase6.md](Phase6.md) for reproducible evidence and limitations.
 
 **Goal:** Establish safe, reproducible development and remove known MVP hazards. **Requirements:** F01, foundation of F07/F12. **Dependencies:** existing MVP.
 
@@ -267,7 +267,7 @@ Exit evidence includes attempts to bypass tool authorization, SSRF, credential f
 
 ## First implementation backlog
 
-G001–G006 are implemented. G002–G006 have passing local tests; G001's full build/security/remote-CI acceptance follows the open gates in Phase6. G007–G012 are not started. These are issue-sized starting points, not an additional rigid sequence.
+G001–G006 are implemented and accepted with local and clean-checkout CI evidence. G007–G012 are not started. These are issue-sized starting points, not an additional rigid sequence.
 
 | ID | Deliverable | Dependency | Acceptance |
 |---|---|---|---|

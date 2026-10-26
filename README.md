@@ -10,7 +10,7 @@ Applications send requests to the gateway, which selects a configured provider, 
 
 The MVP covers legacy inference, API-key authentication, provider/model selection and metadata log queries. It is a local demo baseline, not a qualified production deployment. The supplied competitive research has been translated into a dependency-based plan with explicit acceptance and release gates.
 
-Start with [PRD.md](Documentation/PRD.md) for product scope, [Architecture.md](Documentation/Architecture.md) for current gaps and target design, and [Phases.md](Documentation/Phases.md) for the implementation backlog. **Phase 6 foundation is implemented; [Phase6.md](Documentation/Phase6.md) records validation and open release gates.** The first GA includes compatibility, governance, reliability, privacy, administration and tested operations; broader enterprise and MCP capabilities follow.
+Start with [PRD.md](Documentation/PRD.md) for product scope, [Architecture.md](Documentation/Architecture.md) for current gaps and target design, and [Phases.md](Documentation/Phases.md) for the implementation backlog. **Phase 6 foundation is accepted; [Phase6.md](Documentation/Phase6.md) records the local and clean-checkout CI evidence plus the remaining operating limits.** The first GA includes compatibility, governance, reliability, privacy, administration and tested operations; broader enterprise and MCP capabilities follow.
 
 The former MVP rules and rigid phase sequencing are retired. Independent work can proceed once dependencies are satisfied. [Development.md](Documentation/Development.md) explains the workflow; [Roadmap.md](Documentation/Roadmap.md) preserves implementation history.
 
