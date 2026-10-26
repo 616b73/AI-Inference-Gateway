@@ -1,6 +1,6 @@
 # Deployment and production readiness plan
 
-Updated 2026-09-21. Local Compose, a non-root Dockerfile, Maven wrapper and CI build/test/scan workflow are implemented. [Phase6.md](Phase6.md) records observed verification and open gates. Helm, systemd, Podman, signed releases, HA and recovery procedures below remain **planned deliverables**. Use [README.md](../README.md) for current setup.
+Updated 2026-10-26. Local Compose, a non-root Dockerfile, Maven wrapper and CI build/test/scan workflow are implemented. [Phase6.md](Phase6.md) records Phase 6 acceptance evidence, re-verification and remaining operating limits. Helm, systemd, Podman, signed releases, HA and recovery procedures below remain **planned deliverables**. Use [README.md](../README.md) for current setup.
 
 The MVP upgrade path below is the current continuity strategy. Phase 6 may replace it with a documented transition if design/consumer/data assessment justifies a simpler architecture. Adjust the release evidence accordingly; preserve real data and supported release recovery requirements. A demo origin is not permission to reset an existing environment.
 

@@ -406,6 +406,20 @@ Each entry records what was built, why certain decisions were made, and what was
 - Accepted Phase 6 using the merged `main` workflow evidence rather than treating the earlier partial local image scan as sufficient.
 - Kept production readiness explicitly open: provider compatibility, streaming, tenant isolation, durable accounting, recovery and production load evidence remain later-phase work.
 
+### Milestone 12: Phase 6 re-verification and status cleanup (2026-10-26)
+
+**Goal:** Confirm the accepted foundation still passes before starting Phase 7 and remove stale active-document references to open Phase 6 gates.
+
+**What was done:**
+- Re-ran the clean regular suite on revision `cf469207ffe4874df0a0eaa567dd1465499a15f9`: 89 tests discovered, 88 passed, one opt-in benchmark skipped and zero failures/errors.
+- Re-ran `-Ppostgres-it clean verify` against a disposable pinned PostgreSQL 16.15 container: the regular suite and all four fresh-install, upgrade and production-startup integration tests passed.
+- Ran the opt-in loopback benchmark separately: one benchmark test passed with 320 successful synthetic calls including warm-up.
+- Aligned the active architecture, product, security, operations and phase documents with the already-closed Phase 6 acceptance gates.
+
+**Limits:**
+- The re-verification did not repeat dependency/container scans or regenerate an SBOM; the accepted clean-checkout GitHub Actions run remains the recorded evidence for those gates. Release qualification must refresh them against current advisories.
+- Phase 7 implementation remains unstarted. G007 canonical contracts and G008 streaming transport evidence are next.
+
 ## Next Steps / Future Enhancements
 
 The original six MVP phases (0–5) and the Phase 6 foundation are accepted. Phase 6 implementation and local verification are recorded in Milestone 10; its later clean-checkout build, security and SBOM closure is recorded in Milestone 11 and [Phase6.md](Phase6.md). Phases 7–15 have not started.

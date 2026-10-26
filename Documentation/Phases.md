@@ -1,6 +1,6 @@
 # AI Inference Gateway delivery phases
 
-Updated 2026-09-22. This is the forward implementation plan, not a completion log. **Phase 6 is accepted with local and clean-checkout CI evidence recorded in [Phase6.md](Phase6.md). Phases 7–15 have not started.** [Roadmap.md](Roadmap.md) preserves actual history. Requirement IDs refer to [PRD.md](PRD.md); technical decisions refer to [Architecture.md](Architecture.md).
+Updated 2026-10-26. This is the forward implementation plan, not a completion log. **Phase 6 is accepted and was re-verified locally on 2026-10-26; evidence is recorded in [Phase6.md](Phase6.md). Phases 7–15 have not started.** [Roadmap.md](Roadmap.md) preserves actual history. Requirement IDs refer to [PRD.md](PRD.md); technical decisions refer to [Architecture.md](Architecture.md).
 
 ## Working approach
 
@@ -267,7 +267,7 @@ Exit evidence includes attempts to bypass tool authorization, SSRF, credential f
 
 ## First implementation backlog
 
-G001–G006 are implemented. G002–G006 have passing local tests; G001's full build/security/remote-CI acceptance follows the open gates in Phase6. G007–G012 are not started. These are issue-sized starting points, not an additional rigid sequence.
+G001–G006 are implemented and accepted with local and clean-checkout CI evidence. G007–G012 are not started. These are issue-sized starting points, not an additional rigid sequence.
 
 | ID | Deliverable | Dependency | Acceptance |
 |---|---|---|---|
